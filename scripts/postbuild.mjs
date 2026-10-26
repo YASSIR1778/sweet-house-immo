@@ -41,7 +41,17 @@ async function propertyPages() {
   }
 }
 
-const dynamic = await propertyPages()
+// Demo build: real files for the sample properties too, so shared links answer 200 (WhatsApp previews).
+function demoPages() {
+  try {
+    const seed = readFileSync('src/shared/lib/seed.ts', 'utf8')
+    return [...new Set([...seed.matchAll(/ref: '([A-Z]+-\d+)'/g)].map((m) => m[1]))].map((ref) => ({ path: `biens/${ref}`, lastmod: today }))
+  } catch {
+    return []
+  }
+}
+
+const dynamic = DEMO ? demoPages() : await propertyPages()
 for (const d of dynamic) {
   mkdirSync(`${DIST}/${d.path}`, { recursive: true })
   copyFileSync(`${DIST}/index.html`, `${DIST}/${d.path}/index.html`)
