@@ -17,6 +17,7 @@ import { printVisitVoucher } from '../print'
 import { leadReply, propertyMessage, visitReminder } from '../templates'
 import { Card, MiniEmpty, PageHeader, PhoneLinks, Pill, SearchBox } from '../ui'
 import { useRentReminder } from './Rentals'
+import { PushHint } from '../notifications'
 import { leaseSchedule } from '@/shared/lib/rentals'
 
 function QuickAction({ icon, label, onClick, tone = 'navy' }: { icon: ReactNode; label: string; onClick: () => void; tone?: 'navy' | 'gold' | 'teal' }) {
@@ -116,6 +117,8 @@ export function Desk() {
   return (
     <>
       <PageHeader title={`${greeting()}، ${firstName(me.name)} ☕`} subtitle={`${fmtDate(now.toISOString(), 'ar', { weekday: 'long', day: 'numeric', month: 'long' })} — ${today.length} موعد اليوم · ${inbox.length} طلب جديد${overdue ? ` · ${overdue} مهمة متأخرة` : ''}`} />
+
+      <PushHint />
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <QuickAction icon={<PhoneIncoming className="size-5" />} label="تسجيل مكالمة" onClick={() => quick('call')} tone="gold" />

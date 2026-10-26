@@ -387,6 +387,16 @@ export type BookingSource = 'website' | 'phone' | 'whatsapp' | 'walkin' | 'airbn
 export type GuestIdType = 'cin' | 'passport' | 'residence' | 'other'
 export type CautionStatus = 'none' | 'held' | 'returned' | 'kept'
 /** A stay: dates are yyyy-mm-dd, check_out is the day of departure (not a night). */
+/** A device that receives the phone notifications (web push) of a member. */
+export interface PushSub {
+  id: string
+  staff_id: string
+  endpoint: string
+  device: string | null
+  created_at: string
+  last_ok_at: string | null
+}
+
 export interface Booking {
   id: string
   property_id: string

@@ -52,6 +52,8 @@ import { Login, Pending, ResetPassword } from './auth-screens'
 import { ChangePasswordDialog } from './change-password'
 import { QuickAddProvider, useQuickAdd } from './dialogs'
 import { useCan, useMe, useNames } from './hooks'
+import { NotificationsButton } from './notifications'
+import { syncPush } from './push'
 import { BROKER_KIND, CLIENT_KIND, LEAD_STATUS, ROLE } from './labels'
 import { Avatar, DropMenu, Pill } from './ui'
 
@@ -229,6 +231,10 @@ function Shell() {
     return () => window.removeEventListener('keydown', h)
   }, [])
   useEffect(() => setMobile(false), [loc.pathname])
+  // this device keeps receiving the notifications (its push address can change)
+  useEffect(() => {
+    void syncPush().catch(() => undefined)
+  }, [])
 
   const allGroups: { title?: string; items: NavItem[] }[] = [
     {
@@ -303,6 +309,7 @@ function Shell() {
             <div className="truncate text-sm font-bold">{me.name}</div>
             <div className="truncate text-xs text-gold-300">{me.title || ROLE[me.role]}</div>
           </div>
+          <NotificationsButton />
           {mode === 'live' && (
             <button onClick={() => setPwOpen(true)} className="rounded-full p-2 text-white/60 hover:bg-white/10 hover:text-white" title="تغيير كلمة المرور" aria-label="تغيير كلمة المرور">
               <KeyRound className="size-4" />

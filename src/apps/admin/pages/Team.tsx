@@ -1,12 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Copy, Info, KeyRound, Pencil, ShieldCheck, Sparkles, Trash2, TriangleAlert, UserCog, UserPlus } from 'lucide-react'
+import { BellOff, BellRing, Check, Copy, Info, KeyRound, Pencil, ShieldCheck, Sparkles, Trash2, TriangleAlert, UserCog, UserPlus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useAuth } from '@/shared/lib/auth'
 import { useTable } from '@/shared/lib/data'
 import { addDays, fmtDate, uid } from '@/shared/lib/format'
 import { logActivity, repo } from '@/shared/lib/repo'
-import type { Appointment, CallLog, Lead, Permission, Property, Role, Staff, Task } from '@/shared/lib/types'
+import type { Appointment, CallLog, Lead, Permission, Property, PushSub, Role, Staff, Task } from '@/shared/lib/types'
 import { Button, Field, Input, Modal, Segmented, Switch, cn, useConfirm } from '@/shared/ui/base'
 import { ChangePasswordDialog } from '../change-password'
 import { errorText, useMe, useSave } from '../hooks'
@@ -17,6 +17,7 @@ import { Avatar, PageHeader, Pill } from '../ui'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const failText = (e: unknown) => (e instanceof StaffServiceError ? e.message : errorText(e))
+const devicesText = (n: number) => (n === 1 ? 'جهاز واحد' : n === 2 ? 'جهازين' : n <= 10 ? `${n} أجهزة` : `${n} جهازاً`)
 
 export function Team() {
   const me = useMe()
@@ -28,6 +29,8 @@ export function Team() {
   const { data: leads = [] } = useTable<Lead>('leads')
   const { data: tasks = [] } = useTable<Task>('tasks')
   const { data: props = [] } = useTable<Property>('properties')
+  // who receives the phone notifications of the website requests
+  const { data: devices = [] } = useTable<PushSub>('push_subs', { enabled: live })
   const { save } = useSave<Staff>('staff', 'staff', (s) => s.full_name)
   const service = useQuery({ queryKey: ['staff-service'], queryFn: () => staffService({ action: 'check' }), enabled: live, retry: false, staleTime: 5 * 60_000 })
   const serviceCode = service.error ? (service.error instanceof StaffServiceError ? service.error.code : 'service_error') : null
@@ -83,6 +86,15 @@ export function Team() {
               </div>
             )}
             <div className="mt-0.5 text-xs text-subtle">عضو منذ {fmtDate(s.created_at)}</div>
+            {live && s.active && (() => {
+              const n = devices.filter((d) => d.staff_id === s.id).length
+              return (
+                <div className={cn('mt-1 inline-flex items-center gap-1 text-xs font-semibold', n ? 'text-success' : 'text-subtle')} title={devices.filter((d) => d.staff_id === s.id).map((d) => d.device ?? '').join('، ')}>
+                  {n ? <BellRing className="size-3.5" /> : <BellOff className="size-3.5" />}
+                  {n ? `إشعارات الطلبات مفعّلة على ${devicesText(n)}` : 'إشعارات الطلبات غير مفعّلة'}
+                </div>
+              )
+            })()}
           </div>
         </div>
         {st && s.active && (

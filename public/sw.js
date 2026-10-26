@@ -63,3 +63,48 @@ self.addEventListener('fetch', (event) => {
     )
   }
 })
+
+// Phone notifications: a request from the website, sent (encrypted) by the «re-push» function
+self.addEventListener('push', (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = { body: event.data ? event.data.text() : '' }
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'سويت هاوس للعقار', {
+      body: data.body || '',
+      icon: `${BASE}icon-192.png`,
+      tag: data.tag || undefined,
+      renotify: Boolean(data.tag),
+      dir: 'rtl',
+      lang: 'ar',
+      data: { url: new URL(data.url || 'admin', self.registration.scope).href },
+    }),
+  )
+})
+
+// a tap opens the request in the dashboard (the open tab when there is one)
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = (event.notification.data && event.notification.data.url) || new URL('admin', self.registration.scope).href
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const tab = list.find((c) => new URL(c.url).pathname.startsWith(`${BASE}admin`))
+      if (!tab) return self.clients.openWindow(target)
+      return tab
+        .focus()
+        .then((c) => c.navigate(target))
+        .catch(() => self.clients.openWindow(target))
+    }),
+  )
+})
+
+// the push service renewed this device's address: subscribe again with the same key
+// (the dashboard tells the server on its next opening)
+self.addEventListener('pushsubscriptionchange', (event) => {
+  const options = event.oldSubscription && event.oldSubscription.options
+  if (!options || !options.applicationServerKey) return
+  event.waitUntil(self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: options.applicationServerKey }).catch(() => undefined))
+})

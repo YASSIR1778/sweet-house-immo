@@ -453,6 +453,45 @@ await as(null, async () => {
 await db.query(`update re_properties set published = true, seasonal = false, season = '{}' where id = $1`, [P1])
 await db.exec(`delete from re_payments; delete from re_bookings; delete from re_leads where kind = 'booking'; delete from re_trash;`)
 
+// ------------------------------------------------------------ phone notifications (web push)
+const EP = (n) => `https://push.example.test/send/${n}-${'x'.repeat(40)}`
+const P256 = 'B' + 'k'.repeat(86)
+const AUTHK = 'a'.repeat(22)
+await as(SEC, async () => {
+  await db.query(`select re_push_register($1, $2, $3, 'Android · Chrome')`, [EP(1), P256, AUTHK])
+  ok('push: a member turns notifications on for his phone', (await count(`select count(*) n from re_push_subs where staff_id = $1`, [SEC])) === 1)
+  await fails('push: devices are added only through re_push_register', () => db.query(`insert into re_push_subs (staff_id, endpoint, p256dh, auth) values ($1, $2, $3, $4)`, [SEC, EP(9), P256, AUTHK]), /row-level security/)
+  await fails('push: an insecure address is refused', () => db.query(`select re_push_register('http://insecure.test/x', $1, $2)`, [P256, AUTHK]), /check constraint/)
+  await fails('push: members cannot read the service keys', () => db.query(`select * from re_push_config`), /permission denied/)
+})
+await as(OWNER, async () => {
+  await db.query(`select re_push_register($1, $2, $3, 'iPhone')`, [EP(2), P256, AUTHK])
+  ok('push: the owner sees the devices of the whole team', (await count(`select count(*) n from re_push_subs`)) === 2)
+})
+await as(SEC, async () => {
+  ok('push: a member sees only his own devices', (await count(`select count(*) n from re_push_subs`)) === 1)
+  const d = await db.query(`delete from re_push_subs where endpoint = $1`, [EP(2)])
+  ok('push: a member cannot remove another member’s device', d.affectedRows === 0)
+  await db.query(`select re_push_register($1, $2, $3, 'iPhone')`, [EP(2), P256, AUTHK])
+  ok('push: a phone follows the member signed in on it', (await count(`select count(*) n from re_push_subs where staff_id = $1`, [SEC])) === 2)
+})
+await as(null, async () => {
+  await fails('push: visitors cannot register a device', () => db.query(`select re_push_register($1, $2, $3)`, [EP(3), P256, AUTHK]), /permission denied/)
+  await fails('push: visitors cannot read the service keys', () => db.query(`select * from re_push_config`), /permission denied/)
+})
+const hookSecret = (await one(`select hook_secret from re_push_config where id = 1`))?.hook_secret
+ok('push: a long random secret protects the notification call', /^[0-9a-f]{64}$/.test(hookSecret ?? ''))
+await db.query(`update re_push_config set fn_url = 'https://x.supabase.co/functions/v1/re-push', fn_key = 'anon-key' where id = 1`)
+await as(null, async () => {
+  await db.query(`insert into re_leads (name, phone, kind, source) values ('زائر', '0699000077', 'visit', 'website')`)
+  ok('push: a website request is saved even when the notification cannot leave', true)
+})
+await as(SEC, async () => {
+  await db.query(`select re_push_unregister($1)`, [EP(1)])
+  ok('push: a member turns his phone off', (await count(`select count(*) n from re_push_subs where endpoint = $1`, [EP(1)])) === 0)
+})
+await db.query(`update re_push_config set fn_url = null, fn_key = null where id = 1`)
+
 // ------------------------------------------------------------ website visitor (anon)
 const before = await one(`select updated_at from re_properties where id = $1`, [P1])
 await as(null, async () => {
@@ -500,6 +539,7 @@ try {
   ok('schema runs again (idempotent)', false, e.message)
 }
 ok('data kept after re-run', (await count(`select count(*) n from re_properties`)) === 3 && (await count(`select count(*) n from re_staff`)) === 3)
+ok('push: the notification secret survives a re-run', (await one(`select hook_secret from re_push_config where id = 1`))?.hook_secret === hookSecret)
 ok('bucket created once', (await count(`select count(*) n from storage.buckets where id = 'property-images'`)) === 1)
 
 console.log(`\n${pass} passed, ${fail} failed${pgcrypto ? '' : ' (pgcrypto extension not loaded)'}`)

@@ -7,7 +7,7 @@ import { buildOwnerReport } from './owners'
 import { holds, isFree } from './seasonal'
 import type { Activity, Appointment, Booking, Client, FeeSettings, Lead, Mandate, OwnerReport, PriceChange, Property, SessionUser, Settings } from './types'
 
-export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers' | 'mandates' | 'documents' | 'price_history' | 'trash' | 'offers' | 'invoices' | 'payments' | 'expenses' | 'leases' | 'rent_payments' | 'bookings'
+export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers' | 'mandates' | 'documents' | 'price_history' | 'trash' | 'offers' | 'invoices' | 'payments' | 'expenses' | 'leases' | 'rent_payments' | 'bookings' | 'push_subs'
 
 export const TABLE: Record<TableName, string> = {
   properties: 're_properties',
@@ -31,6 +31,7 @@ export const TABLE: Record<TableName, string> = {
   leases: 're_leases',
   rent_payments: 're_rent_payments',
   bookings: 're_bookings',
+  push_subs: 're_push_subs',
 }
 
 /** Demo: deleted rows of these tables are kept in the local trash, like the database trigger does. */

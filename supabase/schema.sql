@@ -1140,6 +1140,106 @@ drop policy if exists re_activity_select on public.re_activity;
 create policy re_activity_select on public.re_activity for select to authenticated using ((select public.re_can('activity')));
 
 -- ---------------------------------------------------------------------
+-- Phone notifications (web push). Each member turns them on per device in the
+-- dashboard; a request sent from the website reaches every active member's
+-- phone at once through the Edge Function «re-push» (supabase/functions/re-push).
+-- The message is encrypted for the device: nobody in between can read it.
+-- ---------------------------------------------------------------------
+do $$
+begin
+  create extension if not exists pg_net;
+exception when others then
+  raise notice 'pg_net is not available: phone notifications stay off';
+end $$;
+
+create table if not exists public.re_push_subs (
+  id uuid primary key default gen_random_uuid(),
+  staff_id uuid not null references public.re_staff (id) on delete cascade,
+  endpoint text not null unique check (endpoint ~ '^https://' and char_length(endpoint) <= 1000),
+  p256dh text not null check (char_length(p256dh) between 20 and 200),
+  auth text not null check (char_length(auth) between 8 and 100),
+  device text check (device is null or char_length(device) <= 120),
+  created_at timestamptz not null default now(),
+  last_ok_at timestamptz
+);
+create index if not exists re_push_subs_staff_idx on public.re_push_subs (staff_id);
+alter table public.re_push_subs enable row level security;
+-- a member sees and removes his own devices; admins see the whole team's
+drop policy if exists re_push_subs_select on public.re_push_subs;
+create policy re_push_subs_select on public.re_push_subs for select to authenticated
+  using (((select auth.uid()) = staff_id and (select public.re_is_staff())) or (select public.re_is_admin()));
+drop policy if exists re_push_subs_delete on public.re_push_subs;
+create policy re_push_subs_delete on public.re_push_subs for delete to authenticated
+  using (((select auth.uid()) = staff_id and (select public.re_is_staff())) or (select public.re_is_admin()));
+
+-- Keys of the service: written by the Edge Function, read by the trigger below.
+-- No policy at all: neither visitors nor members can read it.
+create table if not exists public.re_push_config (
+  id int primary key default 1 check (id = 1),
+  hook_secret text not null default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
+  vapid_public text,
+  vapid_private jsonb,
+  fn_url text,
+  fn_key text,
+  updated_at timestamptz not null default now()
+);
+alter table public.re_push_config enable row level security;
+revoke all on public.re_push_config from anon, authenticated;
+insert into public.re_push_config (id) values (1) on conflict (id) do nothing;
+
+-- this device, for the signed-in member (a phone that changes hands follows its new user)
+create or replace function public.re_push_register(p_endpoint text, p_p256dh text, p_auth text, p_device text default null)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.re_is_staff() then
+    raise exception 'not_staff' using errcode = '42501';
+  end if;
+  insert into public.re_push_subs (staff_id, endpoint, p256dh, auth, device)
+  values (auth.uid(), p_endpoint, p_p256dh, p_auth, left(p_device, 120))
+  on conflict (endpoint) do update
+    set staff_id = excluded.staff_id, p256dh = excluded.p256dh, auth = excluded.auth, device = excluded.device;
+end $$;
+revoke execute on function public.re_push_register(text, text, text, text) from public, anon;
+grant execute on function public.re_push_register(text, text, text, text) to authenticated;
+
+create or replace function public.re_push_unregister(p_endpoint text)
+returns void language sql security definer set search_path = public as $$
+  delete from public.re_push_subs where endpoint = p_endpoint and public.re_is_staff();
+$$;
+revoke execute on function public.re_push_unregister(text) from public, anon;
+grant execute on function public.re_push_unregister(text) to authenticated;
+
+-- A request from the website: ask the Edge Function to notify the team. The call leaves
+-- after the request is saved (pg_net) and can never make the visitor's request fail.
+create or replace function public.re_notify_lead() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  c public.re_push_config%rowtype;
+begin
+  if new.source is distinct from 'website' then
+    return new;
+  end if;
+  select * into c from public.re_push_config where id = 1;
+  if c.fn_url is null or c.fn_key is null or not exists (select 1 from public.re_push_subs) then
+    return new;
+  end if;
+  begin
+    perform net.http_post(
+      url := c.fn_url,
+      body := jsonb_build_object('action', 'lead', 'id', new.id),
+      headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer ' || c.fn_key, 'apikey', c.fn_key, 'x-hook-secret', c.hook_secret),
+      timeout_milliseconds := 8000
+    );
+  exception when others then
+    raise notice 're_notify_lead: %', sqlerrm;
+  end;
+  return new;
+end $$;
+revoke execute on function public.re_notify_lead() from public, anon, authenticated;
+drop trigger if exists re_notify_lead on public.re_leads;
+create trigger re_notify_lead after insert on public.re_leads for each row execute function public.re_notify_lead();
+
+-- ---------------------------------------------------------------------
 -- Photos: public bucket ; members with the «properties» permission upload / delete
 -- ---------------------------------------------------------------------
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
