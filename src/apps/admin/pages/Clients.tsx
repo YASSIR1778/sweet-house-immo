@@ -1,10 +1,10 @@
-import { CalendarPlus, ClipboardPlus, Download, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react'
+import { CalendarPlus, ClipboardPlus, Download, FolderLock, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { matchScore, useTable } from '@/shared/lib/data'
 import { download, fmtDate, fmtDateTime, fmtPrice, fmtPriceShort, phoneKey, toCsv, waLink } from '@/shared/lib/format'
 import type { Appointment, CallLog, Client, ClientKind, Lead, Property } from '@/shared/lib/types'
-import { Button, Drawer, Segmented, cn } from '@/shared/ui/base'
+import { Button, ButtonLink, Drawer, Segmented, cn } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useQuickAdd } from '../dialogs'
 import { useCan, useDeleteRow, useLookups, useNames } from '../hooks'
@@ -213,6 +213,11 @@ function ClientDrawer({ client: c, onClose, matches }: { client: Client; onClose
             >
               حذف
             </Button>
+          )}
+          {(c.kind === 'owner' || owned.length > 0) && (
+            <ButtonLink to={`/admin/owners?open=${c.id}`} variant="gold" icon={<FolderLock className="size-4" />}>
+              ملف المالك
+            </ButtonLink>
           )}
           <Button variant="outline" icon={<Pencil className="size-4" />} onClick={() => quick('client', c)}>
             تعديل الملف

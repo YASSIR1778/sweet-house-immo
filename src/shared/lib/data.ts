@@ -22,6 +22,7 @@ export function useUpsert<T extends Row>(table: TableName, also: TableName[] = [
       void qc.invalidateQueries({ queryKey: [table] })
       for (const t of also) void qc.invalidateQueries({ queryKey: [t] })
       if (table === 'properties') {
+        void qc.invalidateQueries({ queryKey: ['price_history'] })
         void qc.invalidateQueries({ queryKey: ['public-properties'] })
         void qc.invalidateQueries({ queryKey: ['public-property'] })
       }

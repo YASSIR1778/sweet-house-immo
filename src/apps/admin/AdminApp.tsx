@@ -26,6 +26,7 @@ import {
   Building,
   BadgeDollarSign,
   Calculator,
+  FolderLock,
   Handshake,
   type LucideIcon,
 } from 'lucide-react'
@@ -36,7 +37,8 @@ import { useAuth } from '@/shared/lib/auth'
 import { useTable } from '@/shared/lib/data'
 import { phoneKey, sameDay } from '@/shared/lib/format'
 import { I18nProvider } from '@/shared/lib/i18n'
-import type { Appointment, Broker, Client, Lead, Permission, Property, Task } from '@/shared/lib/types'
+import { mandateState } from '@/shared/lib/owners'
+import type { Appointment, Broker, Client, Lead, Mandate, Permission, Property, Task } from '@/shared/lib/types'
 import { Badge, FullSpinner, cn } from '@/shared/ui/base'
 import { Logo } from '@/shared/ui/logo'
 import { Login, Pending, ResetPassword } from './auth-screens'
@@ -49,6 +51,7 @@ import { Avatar, DropMenu, Pill } from './ui'
 const Activity = lazy(() => import('./pages/Activity').then((m) => ({ default: m.Activity })))
 const Agenda = lazy(() => import('./pages/Agenda').then((m) => ({ default: m.Agenda })))
 const Brokers = lazy(() => import('./pages/Brokers').then((m) => ({ default: m.Brokers })))
+const Owners = lazy(() => import('./pages/Owners').then((m) => ({ default: m.Owners })))
 const Calculators = lazy(() => import('./pages/Calculators').then((m) => ({ default: m.Calculators })))
 const Calls = lazy(() => import('./pages/Calls').then((m) => ({ default: m.Calls })))
 const Clients = lazy(() => import('./pages/Clients').then((m) => ({ default: m.Clients })))
@@ -164,8 +167,13 @@ function Shell() {
   const { data: leads = [], isSuccess: leadsLoaded } = useTable<Lead>('leads', { refetchInterval: 60_000 })
   const { data: tasks = [] } = useTable<Task>('tasks')
   const { data: appts = [] } = useTable<Appointment>('appointments')
+  const { data: mandates = [] } = useTable<Mandate>('mandates')
 
   const newLeads = leads.filter((l) => l.status === 'new').length
+  const mandatesDue = mandates.filter((m) => {
+    const st = mandateState(m).state
+    return st === 'expiring' || st === 'expired'
+  }).length
   const now = new Date()
   const myOverdue = tasks.filter((t) => t.status === 'open' && t.assigned_to === me.id && t.due_at && new Date(t.due_at) < now).length
   const todayAppts = appts.filter((a) => a.status === 'scheduled' && sameDay(a.starts_at, now) && (isAdmin || a.assigned_to === me.id)).length
@@ -208,6 +216,7 @@ function Shell() {
       items: [
         { to: '/admin/properties', label: 'العقارات', icon: Building2 },
         { to: '/admin/clients', label: 'العملاء', icon: Users },
+        { to: '/admin/owners', label: 'ملفات الملاك', icon: FolderLock, badge: mandatesDue, tone: 'gold' },
         { to: '/admin/brokers', label: 'الوسطاء والشركاء', icon: Handshake },
         { to: '/admin/calculators', label: 'حاسبة المصاريف', icon: Calculator },
       ],
@@ -320,6 +329,7 @@ function Shell() {
             <Route path="leads" element={<Leads />} />
             <Route path="clients" element={<Clients />} />
             <Route path="brokers" element={<Brokers />} />
+            <Route path="owners" element={<Owners />} />
             <Route path="calculators" element={<Calculators />} />
             <Route path="agenda" element={<Agenda />} />
             <Route path="tasks" element={<Tasks />} />

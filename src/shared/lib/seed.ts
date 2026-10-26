@@ -1,5 +1,5 @@
 import { DEMO_USERS } from './config'
-import type { Activity, Appointment, Broker, CallLog, Client, Deal, Lead, Property, Staff, Task } from './types'
+import type { Activity, Appointment, Broker, CallLog, Client, Deal, Lead, Mandate, PriceChange, Property, Staff, Task } from './types'
 
 const img = (id: string, w = 1400) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`
 
@@ -181,7 +181,7 @@ export function seedProperties(): Property[] {
         owner_client_id: 'c-4',
         private_notes: 'المفتاح عند الجارة في الطابق الأرضي. عمولة 2.5% متفق عليها مع المالكة. أقل سعر تقبله: 1.550.000 د.م.',
       },
-      20,
+      170,
     ),
     prop(
       {
@@ -669,7 +669,7 @@ export function seedClients(): Client[] {
     { ...base, id: 'c-1', full_name: 'أحمد العلمي', phone: '0661234567', kind: 'buyer', source: 'website', budget_min: 800_000, budget_max: 1_300_000, wants_purpose: 'sale', wants_types: ['apartment', 'duplex'], wants_neighborhoods: ['martil', 'mdiq', 'tabola'], wants_rooms_min: 3, notes: 'يبحث عن شقة قرب البحر لعائلته، يفضل طابقاً مرتفعاً مع مصعد.', created_at: ago(14) },
     { ...base, id: 'c-2', full_name: 'Laura Fernández', phone: '+34612345678', whatsapp: '+34612345678', email: 'laura.f@example.com', lang: 'es', kind: 'buyer', source: 'instagram', budget_min: 1_000_000, budget_max: 1_500_000, wants_purpose: 'sale', wants_types: ['apartment'], wants_neighborhoods: ['martil', 'cabo-negro', 'mdiq'], wants_rooms_min: 2, notes: 'Vive en Málaga. Quiere vistas al mar. Visitas por vídeo primero.', created_at: ago(9) },
     { ...base, id: 'c-3', full_name: 'محمد بنعيسى', phone: '0677889900', kind: 'tenant', source: 'phone', budget_min: 3_000, budget_max: 5_000, wants_purpose: 'rent', wants_types: ['apartment'], wants_neighborhoods: ['centre', 'tabola', 'coelma'], wants_rooms_min: 3, notes: 'أستاذ، يحتاج السكن قبل بداية الشهر المقبل.', created_at: ago(6) },
-    { ...base, id: 'c-4', full_name: 'خديجة الريسوني', phone: '0655443322', kind: 'owner', source: 'referral', budget_min: null, budget_max: null, wants_purpose: null, wants_types: [], wants_neighborhoods: [], wants_rooms_min: null, notes: 'مالكة الرياض SH-1004. تفضل التواصل بعد الزوال.', created_at: ago(22) },
+    { ...base, id: 'c-4', share_token: '7d3f9a52-4c1e-4b8a-9f2d-1a6c5e8b0c41', last_report_at: ago(31), full_name: 'خديجة الريسوني', phone: '0655443322', kind: 'owner', source: 'referral', budget_min: null, budget_max: null, wants_purpose: null, wants_types: [], wants_neighborhoods: [], wants_rooms_min: null, notes: 'مالكة الرياض SH-1004. تفضل التواصل بعد الزوال.', created_at: ago(22) },
     { ...base, id: 'c-5', broker_id: 'b-2', full_name: 'Youssef El Idrissi', phone: '0612345678', email: 'y.idrissi@example.com', lang: 'fr', kind: 'investor', source: 'facebook', budget_min: 1_500_000, budget_max: 3_000_000, wants_purpose: 'sale', wants_types: ['land', 'commercial', 'building'], wants_neighborhoods: ['route-martil', 'centre', 'tabola'], wants_rooms_min: null, notes: 'مستثمر مقيم ببلجيكا، يزور تطوان في الصيف.', created_at: ago(30) },
     { ...base, id: 'c-6', full_name: 'سعاد الحداد', phone: '0698765432', kind: 'tenant', source: 'walkin', budget_min: 2_000, budget_max: 3_000, wants_purpose: 'rent', wants_types: ['studio', 'apartment'], wants_neighborhoods: ['universite', 'saniat-rmel'], wants_rooms_min: 1, notes: 'طالبة ماستر، تبحث عن استوديو مفروش.', created_at: ago(3) },
   ]
@@ -742,6 +742,43 @@ export function seedTasks(): Task[] {
     tk({ id: 't-5', title: 'تجديد وكالة البيع للأرض SH-1005', due_at: at(6, 10), priority: 'low', status: 'open', assigned_to: ADMIN, related_type: 'property', related_id: 'p-1005' }),
     tk({ id: 't-6', title: 'طباعة بطاقات العقارات لواجهة الوكالة', due_at: ago(2, 10), priority: 'low', status: 'done', assigned_to: SEC, completed_at: ago(2, 11) }),
     tk({ id: 't-7', title: 'الرد على Sofía وتأكيد زيارة نهاية الأسبوع', due_at: at(0, 15), priority: 'high', status: 'open', assigned_to: SEC, related_type: 'lead', related_id: 'l-2' }),
+  ]
+}
+
+export function seedMandates(): Mandate[] {
+  const day = (n: number) => at(n, 12).slice(0, 10)
+  return [
+    {
+      id: 'm-1',
+      property_id: 'p-1004',
+      owner_client_id: 'c-4',
+      kind: 'exclusive',
+      purpose: 'sale',
+      start_date: day(-160),
+      end_date: day(20),
+      price: 1_650_000,
+      net_price: 1_600_000,
+      min_price: 1_550_000,
+      commission_rate: 2.5,
+      commission_amount: null,
+      keys: 'agency',
+      keys_notes: 'في خزانة الوكالة، الرف الثاني',
+      visit_terms: 'كل الأيام من 10 إلى 18، بإخبار المالكة قبل ساعة',
+      signed: true,
+      status: 'active',
+      notes: 'تفضل التواصل بعد الزوال.',
+      created_by: ADMIN,
+      created_at: ago(160),
+      updated_at: ago(160),
+    },
+  ]
+}
+
+/** The riad started higher and was reduced after a few months. */
+export function seedPriceHistory(): PriceChange[] {
+  return [
+    { id: 'h-1', property_id: 'p-1004', old_price: null, new_price: 1_800_000, changed_by: ADMIN, created_at: ago(160) },
+    { id: 'h-2', property_id: 'p-1004', old_price: 1_800_000, new_price: 1_650_000, changed_by: ADMIN, created_at: ago(45) },
   ]
 }
 
@@ -832,6 +869,8 @@ export function seedData() {
     tasks: seedTasks(),
     deals: seedDeals(),
     brokers: seedBrokers(),
+    mandates: seedMandates(),
+    price_history: seedPriceHistory(),
     calls: seedCalls(),
     staff: seedStaff(),
     activity: seedActivity(),

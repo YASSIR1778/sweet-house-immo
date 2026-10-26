@@ -1,4 +1,4 @@
-import type { AgreementMode, AppointmentKind, AppointmentStatus, BrokerKind, ClientKind, LeadKind, LeadSource, LeadStatus, PropertyStatus, Purpose, Role, ShareParty, ShareSide, TaskPriority } from '@/shared/lib/types'
+import type { AgreementMode, AppointmentKind, AppointmentStatus, BrokerKind, ClientKind, DocKind, KeysHolder, LeadKind, LeadSource, LeadStatus, MandateKind, PropertyStatus, Purpose, Role, ShareParty, ShareSide, TaskPriority } from '@/shared/lib/types'
 
 export interface Lbl {
   label: string
@@ -75,6 +75,39 @@ export const PRIORITY: Record<TaskPriority, Lbl> = {
   high: { label: 'مستعجلة', color: '#b91c1c' },
 }
 
+export const MANDATE_KIND: Record<MandateKind, Lbl> = {
+  exclusive: { label: 'تفويض حصري', color: '#a8832f' },
+  simple: { label: 'تفويض عادي', color: '#0f766e' },
+}
+
+export const KEYS: Record<KeysHolder, string> = {
+  agency: 'المفتاح عند الوكالة',
+  owner: 'المفتاح عند المالك',
+  concierge: 'المفتاح عند الحارس',
+  none: 'لا يوجد مفتاح',
+}
+
+export const DOC_KIND: Record<DocKind, string> = {
+  title: 'شهادة الملكية',
+  plan: 'التصميم أو الرسم العقاري',
+  id: 'نسخة البطاقة الوطنية',
+  mandate: 'التفويض الموقّع',
+  contract: 'عقد',
+  permit: 'رخصة البناء أو السكن',
+  tax: 'وثائق ضريبية',
+  other: 'وثيقة أخرى',
+}
+
+/** 0 → اليوم, 1 → يوم واحد, 2 → يومان, 3-10 → أيام, 11+ → يوماً */
+export function daysAr(n: number): string {
+  const a = Math.abs(n)
+  if (a === 0) return 'اليوم'
+  if (a === 1) return 'يوم واحد'
+  if (a === 2) return 'يومان'
+  if (a <= 10) return `${a} أيام`
+  return `${a} يوماً`
+}
+
 export const BROKER_KIND: Record<BrokerKind, Lbl> = {
   broker: { label: 'وسيط عقاري', color: '#0f766e' },
   agency: { label: 'وكالة شريكة', color: '#1d4ed8' },
@@ -126,6 +159,9 @@ export const ENTITY: Record<string, string> = {
   settings: 'الإعدادات',
   staff: 'عضو الفريق',
   broker: 'شريك',
+  mandate: 'تفويض',
+  document: 'وثيقة',
+  owner_report: 'تقرير المالك',
   session: 'الجلسة',
 }
 

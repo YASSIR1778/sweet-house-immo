@@ -2,9 +2,10 @@ import { DEFAULT_SETTINGS } from './config'
 import { nowIso, uid } from './format'
 import { IMAGES_BUCKET, getSupabase, isConfigured } from './supabase'
 import { DEFAULT_FEES } from './fee-defaults'
-import type { Activity, FeeSettings, Lead, Property, SessionUser, Settings } from './types'
+import { buildOwnerReport } from './owners'
+import type { Activity, Appointment, Client, FeeSettings, Lead, Mandate, OwnerReport, PriceChange, Property, SessionUser, Settings } from './types'
 
-export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers'
+export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers' | 'mandates' | 'documents' | 'price_history'
 
 export const TABLE: Record<TableName, string> = {
   properties: 're_properties',
@@ -17,7 +18,12 @@ export const TABLE: Record<TableName, string> = {
   staff: 're_staff',
   activity: 're_activity',
   brokers: 're_brokers',
+  mandates: 're_mandates',
+  documents: 're_documents',
+  price_history: 're_price_history',
 }
+
+export const DOCS_BUCKET = 'property-docs'
 
 /** Internal settings (never public): read by the team, written with the «settings» permission. */
 export type PrivateKey = 'network'
@@ -45,6 +51,13 @@ export interface Repo {
   savePrivate<T>(key: PrivateKey, value: T): Promise<void>
   uploadImage(blob: Blob, name: string): Promise<string>
   deleteImage(url: string): Promise<void>
+  /** private documents: returns the storage path (demo: a data URL) */
+  uploadDocument(file: Blob, name: string): Promise<string>
+  /** short-lived link to open a private document */
+  documentUrl(path: string): Promise<string>
+  deleteDocumentFile(path: string): Promise<void>
+  /** the owner's private follow-up page (null when the link is unknown or revoked) */
+  ownerReport(token: string): Promise<OwnerReport | null>
   resetDemo(): Promise<void>
 }
 
@@ -133,6 +146,15 @@ class LocalRepo implements Repo {
     await this.ready
     const rows = this.read<T>(table)
     const i = rows.findIndex((r) => r.id === row.id)
+    if (table === 'properties') {
+      // the database keeps a price history with a trigger; the demo does it here
+      const before = i >= 0 ? (rows[i] as unknown as Property).price : null
+      const after = (row as unknown as Property).price
+      if (i < 0 || before !== after) {
+        const h: PriceChange = { id: uid(), property_id: row.id, old_price: before, new_price: after, changed_by: null, created_at: nowIso() }
+        this.write('price_history', [h, ...this.read<PriceChange>('price_history')])
+      }
+    }
     if (i >= 0) rows[i] = { ...rows[i], ...row }
     else rows.unshift(row)
     this.write(table, rows)
@@ -220,6 +242,22 @@ class LocalRepo implements Repo {
   async deleteImage(): Promise<void> {
     /* data URLs live inside the row */
   }
+  async uploadDocument(file: Blob): Promise<string> {
+    if (file.size > 1_500_000) throw new Error('demo_file_too_big')
+    return this.uploadImage(file)
+  }
+  async documentUrl(path: string): Promise<string> {
+    return path
+  }
+  async deleteDocumentFile(): Promise<void> {
+    /* stored inside the row */
+  }
+  async ownerReport(token: string): Promise<OwnerReport | null> {
+    await this.ready
+    const client = this.read<Client>('clients').find((c) => c.share_token && c.share_token === token)
+    if (!client) return null
+    return buildOwnerReport(client, this.read<Property>('properties'), this.read<Lead>('leads'), this.read<Appointment>('appointments'), this.read<PriceChange>('price_history'), this.read<Mandate>('mandates'))
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -300,6 +338,27 @@ class SupabaseRepo implements Repo {
     const i = url.indexOf(marker)
     if (i < 0) return
     await this.sb.storage.from(IMAGES_BUCKET).remove([decodeURIComponent(url.slice(i + marker.length))])
+  }
+  async uploadDocument(file: Blob, name: string): Promise<string> {
+    const dot = name.lastIndexOf('.')
+    const ext = dot > 0 ? name.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) : 'bin'
+    const path = `${new Date().getFullYear()}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext || 'bin'}`
+    const { error } = await this.sb.storage.from(DOCS_BUCKET).upload(path, file, { contentType: file.type || 'application/octet-stream' })
+    if (error) throw error
+    return path
+  }
+  async documentUrl(path: string): Promise<string> {
+    const { data, error } = await this.sb.storage.from(DOCS_BUCKET).createSignedUrl(path, 600)
+    if (error) throw error
+    return data.signedUrl
+  }
+  async deleteDocumentFile(path: string): Promise<void> {
+    await this.sb.storage.from(DOCS_BUCKET).remove([path])
+  }
+  async ownerReport(token: string): Promise<OwnerReport | null> {
+    const { data, error } = await this.sb.rpc('re_owner_report', { p_token: token })
+    if (error) throw error
+    return (data as OwnerReport | null) ?? null
   }
 }
 

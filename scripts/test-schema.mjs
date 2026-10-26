@@ -228,6 +228,49 @@ await as(null, async () => {
 })
 await db.query(`delete from re_private`)
 
+// ------------------------------------------------------------ owners: mandates, documents, price history, owner link
+const OWNERC = (await one(`insert into re_clients (full_name, phone, kind, lang) values ('خديجة الريسوني', '0655443322', 'owner', 'ar') returning id`)).id
+await db.query(`update re_properties set owner_client_id = $1 where id = $2`, [OWNERC, P1])
+ok('price history: starting price recorded for every property', (await count(`select count(*) n from re_price_history where property_id = $1 and old_price is null`, [P1])) === 1)
+await as(SEC, async () => {
+  const m = (await one(`insert into re_mandates (property_id, owner_client_id, kind, end_date, commission_rate) values ($1, $2, 'exclusive', current_date + 20, 2.5) returning id, status`, [P1, OWNERC]))
+  ok('member with «properties» adds a mandate', m?.status === 'active')
+  const d = await db.query(`delete from re_mandates where id = $1`, [m.id])
+  ok('member without «delete» cannot delete a mandate', d.affectedRows === 0)
+  const doc = (await one(`insert into re_documents (client_id, property_id, kind, title, path, file_name) values ($1, $2, 'title', 'شهادة الملكية', 'owners/a.pdf', 'a.pdf') returning id`, [OWNERC, P1])).id
+  ok('member adds a document', Boolean(doc))
+  const dd = await db.query(`delete from re_documents where id = $1`, [doc])
+  ok('the uploader can remove his own document', dd.affectedRows === 1)
+  await fails('a document needs an owner or a property', () => db.query(`insert into re_documents (kind, path) values ('other', 'x.pdf')`), /check constraint/)
+  await db.query(`insert into storage.objects (bucket_id, name, owner) values ('property-docs', 'owners/b.pdf', $1)`, [SEC])
+  ok('member uploads a private file', (await count(`select count(*) n from storage.objects where bucket_id = 'property-docs'`)) === 1)
+  await db.query(`update re_properties set price = 870000 where id = $1`, [P1])
+  await db.query(`update re_properties set title = 'شقة' where id = $1`, [P1])
+  ok('price changes recorded, title change ignored', (await count(`select count(*) n from re_price_history where property_id = $1`, [P1])) === 3)
+  await fails('member cannot write the price history by hand', () => db.query(`insert into re_price_history (property_id, new_price) values ($1, 1)`, [P1]), /row-level security/)
+})
+await setPerms([])
+await as(SEC, async () => {
+  await fails('member without «properties» cannot add a mandate', () => db.query(`insert into re_mandates (property_id) values ($1)`, [P1]), /row-level security/)
+  ok('member without «properties» still reads mandates', (await count(`select count(*) n from re_mandates`)) === 1)
+})
+await setPerms(['properties'])
+const TOKEN = '11111111-2222-3333-4444-555555555555'
+await db.query(`update re_clients set share_token = $1 where id = $2`, [TOKEN, OWNERC])
+await db.query(`insert into re_appointments (title, kind, starts_at, ends_at, property_id, status) values ('زيارة', 'visit', now() - interval '2 days', now() - interval '2 days' + interval '30 minutes', $1, 'done')`, [P1])
+await as(null, async () => {
+  ok('anon: mandates, documents and price history hidden', (await count(`select count(*) n from re_mandates`)) + (await count(`select count(*) n from re_documents`)) + (await count(`select count(*) n from re_price_history`)) === 0)
+  ok('anon: private files hidden', (await count(`select count(*) n from storage.objects where bucket_id = 'property-docs'`)) === 0)
+  const rep = (await one(`select re_owner_report($1) r`, [TOKEN])).r
+  ok('owner link: report of his properties', rep?.name === 'خديجة' && rep.properties.length === 1 && rep.properties[0].ref === 'SH-1001', JSON.stringify(rep)?.slice(0, 120))
+  const pr = rep?.properties?.[0] ?? {}
+  ok('owner link: activity counts and price history', pr.visits_done === 1 && pr.prices.length === 3 && pr.mandate?.kind === 'exclusive')
+  ok('owner link: no private data', !JSON.stringify(rep).match(/private_notes|0611223344|أقل ثمن|phone/))
+  ok('owner link: wrong token gives nothing', (await one(`select re_owner_report('99999999-2222-3333-4444-555555555555') r`)).r === null)
+})
+await db.query(`delete from re_appointments where title = 'زيارة' and kind = 'visit' and status = 'done' and property_id = $1 and client_id is null`, [P1])
+await db.query(`update re_properties set owner_client_id = null, price = 880000, title = 'شقة' where id = $1`, [P1])
+
 // ------------------------------------------------------------ website visitor (anon)
 const before = await one(`select updated_at from re_properties where id = $1`, [P1])
 await as(null, async () => {

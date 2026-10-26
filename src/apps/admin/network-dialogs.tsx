@@ -5,7 +5,8 @@ import { agencyNet, defaultCommission, shareAmount, shareFromBroker, sharesTotal
 import { useNetwork, useSettings, useTable } from '@/shared/lib/data'
 import { DEFAULT_NETWORK } from '@/shared/lib/fee-defaults'
 import { combineDateTime, fmtNumber, localDate, nowIso, uid } from '@/shared/lib/format'
-import type { AgreementMode, Broker, BrokerKind, Deal, DealShare, NetworkSettings, Property, Purpose, Settings, ShareParty, ShareSide } from '@/shared/lib/types'
+import { currentMandate, mandateCommission } from '@/shared/lib/owners'
+import type { AgreementMode, Broker, BrokerKind, Deal, DealShare, Mandate, NetworkSettings, Property, Purpose, Settings, ShareParty, ShareSide } from '@/shared/lib/types'
 import { Button, Field, Input, Modal, Segmented, Select, Switch, Textarea, cn } from '@/shared/ui/base'
 import { StaffSelect, useClientOptions, usePropertyOptions } from './dialogs'
 import { useCan, useDeleteRow, useLookups, useMe, useNames, useSave } from './hooks'
@@ -211,10 +212,12 @@ export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
   const cs = (settings as Settings).commission
   const { data: network = DEFAULT_NETWORK } = useNetwork()
   const { data: brokers = [] } = useTable<Broker>('brokers')
+  const { data: mandates = [] } = useTable<Mandate>('mandates')
   const brokerById = useMemo(() => new Map(brokers.map((b) => [b.id, b])), [brokers])
   const propertyOptions = usePropertyOptions()
   const clientOptions = useClientOptions()
   const partnerOptions = useBrokerOptions(['broker', 'agency', 'referrer'])
+  const saveMandate = useSave<Mandate>('mandates', 'mandate', (m) => L.property(m.property_id)?.ref ?? 'تفويض')
   const isNew = !initial.id
   const legacy = !isNew && initial.commission_seller == null && initial.commission_buyer == null
   const [f, setF] = useState(() => ({
@@ -246,6 +249,10 @@ export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
     const d = defaultCommission(kind, amount, cs)
     const lb = brokerById.get(L.property(propertyId)?.broker_id ?? '')
     if (kind === 'sale' && lb?.kind === 'developer') d.seller = Math.round(lb.agreement_mode === 'fixed' ? lb.agreement_value : (amount * lb.agreement_value) / 100)
+    // what the owner agreed in his mandate wins over the agency's usual rate
+    const m = currentMandate(mandates, propertyId)
+    const agreed = m && m.purpose === kind ? mandateCommission(m, amount, kind) : null
+    if (agreed != null) d.seller = agreed
     return d
   }
   const reprice = (patch: Partial<typeof f>) =>
@@ -322,6 +329,8 @@ export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
     if (!saved) return
     if (markProperty && p) {
       await prop.save({ ...p, status: f.kind === 'rent' ? 'rented' : 'sold', published: false, featured: false, updated_at: nowIso() }, { action: 'status', silent: true, meta: { status: f.kind === 'rent' ? 'rented' : 'sold' } })
+      const m = currentMandate(mandates, p.id)
+      if (m && can('properties')) await saveMandate.save({ ...m, status: 'ended', updated_at: nowIso() }, { silent: true, action: 'status', meta: { status: 'ended' } })
     }
     onSaved?.(saved)
     onClose()

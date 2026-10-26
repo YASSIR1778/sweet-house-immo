@@ -360,6 +360,89 @@ create table if not exists public.re_private (
 );
 
 -- ---------------------------------------------------------------------
+-- Owners: mandates (authorisation to sell / rent), private documents,
+-- price history, and a private follow-up link for each owner
+-- ---------------------------------------------------------------------
+create table if not exists public.re_mandates (
+  id uuid primary key default gen_random_uuid(),
+  property_id uuid not null references public.re_properties (id) on delete cascade,
+  owner_client_id uuid references public.re_clients (id) on delete set null,
+  kind text not null default 'simple' check (kind in ('exclusive', 'simple')),
+  purpose text not null default 'sale' check (purpose in ('sale', 'rent')),
+  start_date date not null default current_date,
+  end_date date,
+  price numeric check (price >= 0),
+  net_price numeric check (net_price >= 0),
+  min_price numeric check (min_price >= 0),
+  -- paid by the owner: % of the price for a sale, months of rent for a rental, or a fixed amount
+  commission_rate numeric check (commission_rate >= 0),
+  commission_amount numeric check (commission_amount >= 0),
+  keys text not null default 'owner' check (keys in ('agency', 'owner', 'concierge', 'none')),
+  keys_notes text,
+  visit_terms text,
+  signed boolean not null default false,
+  status text not null default 'active' check (status in ('active', 'ended', 'cancelled')),
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists re_mandates_property_idx on public.re_mandates (property_id);
+
+-- files live in the PRIVATE storage bucket «property-docs»; this table describes them
+create table if not exists public.re_documents (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid references public.re_clients (id) on delete cascade,
+  property_id uuid references public.re_properties (id) on delete cascade,
+  kind text not null default 'other' check (kind in ('title', 'plan', 'id', 'mandate', 'contract', 'permit', 'tax', 'other')),
+  title text not null default '',
+  path text not null,
+  file_name text not null default '',
+  mime text,
+  size int,
+  expires_at date,
+  uploaded_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  constraint re_documents_owner_check check (client_id is not null or property_id is not null)
+);
+
+-- every price change of a property, written by a trigger
+create table if not exists public.re_price_history (
+  id uuid primary key default gen_random_uuid(),
+  property_id uuid not null references public.re_properties (id) on delete cascade,
+  old_price numeric,
+  new_price numeric not null,
+  changed_by uuid,
+  created_at timestamptz not null default now()
+);
+create index if not exists re_price_history_property_idx on public.re_price_history (property_id, created_at);
+
+create or replace function public.re_track_price() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' or new.price is distinct from old.price then
+    insert into public.re_price_history (property_id, old_price, new_price, changed_by)
+    values (new.id, case when tg_op = 'UPDATE' then old.price end, new.price, auth.uid());
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists re_track_price on public.re_properties;
+create trigger re_track_price
+  after insert or update of price on public.re_properties
+  for each row execute function public.re_track_price();
+
+-- the starting price of properties added before the history existed
+insert into public.re_price_history (property_id, old_price, new_price, created_at)
+select p.id, null, p.price, p.created_at
+from public.re_properties p
+where not exists (select 1 from public.re_price_history h where h.property_id = p.id);
+
+-- private follow-up link of an owner, and when he last received a report
+alter table public.re_clients add column if not exists share_token uuid unique;
+alter table public.re_clients add column if not exists last_report_at timestamptz;
+
+-- ---------------------------------------------------------------------
 -- updated_at (a page view does not count as an edit)
 -- ---------------------------------------------------------------------
 create or replace function public.re_touch() returns trigger
@@ -381,6 +464,8 @@ drop trigger if exists re_touch_leads on public.re_leads;
 create trigger re_touch_leads before update on public.re_leads for each row execute function public.re_touch();
 drop trigger if exists re_touch_brokers on public.re_brokers;
 create trigger re_touch_brokers before update on public.re_brokers for each row execute function public.re_touch();
+drop trigger if exists re_touch_mandates on public.re_mandates;
+create trigger re_touch_mandates before update on public.re_mandates for each row execute function public.re_touch();
 
 -- ---------------------------------------------------------------------
 -- Anti-spam: at most 3 website requests per phone number every 10 minutes
@@ -425,6 +510,52 @@ language sql stable security definer set search_path = public as $$
 $$;
 grant execute on function public.re_public_properties(text) to anon, authenticated;
 
+-- What an owner sees through his private link: his properties and their activity
+-- (counts only: never the names or phones of visitors, never private notes).
+create or replace function public.re_owner_report(p_token uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  v_client public.re_clients;
+  v_props jsonb;
+begin
+  if p_token is null then
+    return null;
+  end if;
+  select * into v_client from public.re_clients where share_token = p_token;
+  if not found then
+    return null;
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'ref', p.ref,
+      'title', p.title,
+      'purpose', p.purpose,
+      'type', p.type,
+      'status', p.status,
+      'published', p.published,
+      'price', p.price,
+      'image', p.images[1],
+      'views', p.views,
+      'created_at', p.created_at,
+      'leads', (select count(*) from public.re_leads l where l.property_id = p.id),
+      'visits_done', (select count(*) from public.re_appointments a where a.property_id = p.id and a.kind = 'visit' and a.status = 'done'),
+      'visits_planned', (select count(*) from public.re_appointments a where a.property_id = p.id and a.kind = 'visit' and a.status = 'scheduled' and a.starts_at > now()),
+      'last_visit', (select max(a.starts_at) from public.re_appointments a where a.property_id = p.id and a.kind = 'visit' and a.status = 'done'),
+      'prices', (select coalesce(jsonb_agg(jsonb_build_object('price', h.new_price, 'at', h.created_at) order by h.created_at), '[]'::jsonb) from public.re_price_history h where h.property_id = p.id),
+      'mandate', (select jsonb_build_object('kind', m.kind, 'start_date', m.start_date, 'end_date', m.end_date) from public.re_mandates m where m.property_id = p.id and m.status = 'active' order by m.start_date desc limit 1)
+    ) order by p.created_at desc), '[]'::jsonb)
+  into v_props
+  from public.re_properties p
+  where p.owner_client_id = v_client.id;
+  return jsonb_build_object(
+    'name', split_part(v_client.full_name, ' ', 1),
+    'lang', v_client.lang,
+    'generated_at', now(),
+    'properties', v_props
+  );
+end $$;
+revoke execute on function public.re_owner_report(uuid) from public;
+grant execute on function public.re_owner_report(uuid) to anon, authenticated;
+
 create or replace function public.re_increment_views(p_id uuid) returns void
 language sql security definer set search_path = public as $$
   update public.re_properties set views = views + 1 where id = p_id and published;
@@ -446,6 +577,33 @@ alter table public.re_deals enable row level security;
 alter table public.re_activity enable row level security;
 alter table public.re_brokers enable row level security;
 alter table public.re_private enable row level security;
+alter table public.re_mandates enable row level security;
+alter table public.re_documents enable row level security;
+alter table public.re_price_history enable row level security;
+
+-- mandates: every member reads; adding / editing needs «properties»; deleting needs «delete»
+drop policy if exists re_mandates_select on public.re_mandates;
+create policy re_mandates_select on public.re_mandates for select to authenticated using ((select public.re_is_staff()));
+drop policy if exists re_mandates_insert on public.re_mandates;
+create policy re_mandates_insert on public.re_mandates for insert to authenticated with check ((select public.re_can('properties')));
+drop policy if exists re_mandates_update on public.re_mandates;
+create policy re_mandates_update on public.re_mandates for update to authenticated using ((select public.re_can('properties'))) with check ((select public.re_can('properties')));
+drop policy if exists re_mandates_delete on public.re_mandates;
+create policy re_mandates_delete on public.re_mandates for delete to authenticated using ((select public.re_can('delete')));
+
+-- documents: members read and add; the uploader or the «delete» permission removes
+drop policy if exists re_documents_select on public.re_documents;
+create policy re_documents_select on public.re_documents for select to authenticated using ((select public.re_is_staff()));
+drop policy if exists re_documents_insert on public.re_documents;
+create policy re_documents_insert on public.re_documents for insert to authenticated with check ((select public.re_is_staff()));
+drop policy if exists re_documents_update on public.re_documents;
+create policy re_documents_update on public.re_documents for update to authenticated using ((select public.re_is_staff())) with check ((select public.re_is_staff()));
+drop policy if exists re_documents_delete on public.re_documents;
+create policy re_documents_delete on public.re_documents for delete to authenticated using ((select public.re_is_staff()) and (uploaded_by = (select auth.uid()) or (select public.re_can('delete'))));
+
+-- price history: members read; only the trigger writes
+drop policy if exists re_price_history_select on public.re_price_history;
+create policy re_price_history_select on public.re_price_history for select to authenticated using ((select public.re_is_staff()));
 
 -- partners: every member reads and adds them; deleting needs the «delete» permission
 drop policy if exists re_brokers_select on public.re_brokers;
@@ -542,6 +700,18 @@ drop policy if exists re_images_update on storage.objects;
 create policy re_images_update on storage.objects for update to authenticated using (bucket_id = 'property-images' and (select public.re_can('properties')));
 drop policy if exists re_images_delete on storage.objects;
 create policy re_images_delete on storage.objects for delete to authenticated using (bucket_id = 'property-images' and (select public.re_can('properties')));
+
+-- Documents: PRIVATE bucket (never public); the team reads with short-lived signed links
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('property-docs', 'property-docs', false, 20971520, array['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
+on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists re_docs_select on storage.objects;
+create policy re_docs_select on storage.objects for select to authenticated using (bucket_id = 'property-docs' and (select public.re_is_staff()));
+drop policy if exists re_docs_insert on storage.objects;
+create policy re_docs_insert on storage.objects for insert to authenticated with check (bucket_id = 'property-docs' and (select public.re_is_staff()));
+drop policy if exists re_docs_delete on storage.objects;
+create policy re_docs_delete on storage.objects for delete to authenticated using (bucket_id = 'property-docs' and (select public.re_is_staff()) and (owner = (select auth.uid()) or (select public.re_can('delete'))));
 
 -- ---------------------------------------------------------------------
 -- Existing accounts need nothing more: on their first sign-in to /admin the app calls re_join().

@@ -84,6 +84,16 @@ export const DEFAULT_SETTINGS: Settings = {
       fr: 'Je soussigné(e) reconnais avoir visité le bien désigné ci-dessus par l’intermédiaire de l’agence {agency}, qui me l’a présenté pour la première fois. Je m’engage à ne pas négocier ni conclure, directement ou indirectement, avec le propriétaire ou tout autre intermédiaire sans l’agence, pendant 12 mois à compter de la date de cette visite.',
       es: 'El/la abajo firmante reconoce haber visitado el inmueble arriba indicado a través de la agencia {agency}, que se lo presentó por primera vez, y se compromete a no negociar ni contratar, directa o indirectamente, con el propietario u otro intermediario sin la agencia, durante 12 meses desde la fecha de esta visita.',
     },
+    mandate_clause: {
+      ar: 'يفوّض المالك الموقّع أسفله وكالة {agency} لعرض العقار المذكور أعلاه {purpose} والبحث عن {party} له بالشروط المبينة في هذا التفويض، طيلة مدته. تتولى الوكالة الإشهار والزيارات والتفاوض، ولا تُبرم أي عقد باسم المالك. يلتزم المالك بتقديم الوثائق اللازمة، وبتمكين الوكالة من زيارة العقار، وبإخبارها فوراً بكل تغيير في الثمن أو في وضعية العقار. تستحق الوكالة العمولة المتفق عليها عند إبرام العقد مع أي {party} قدمته أو عرّفته بالعقار خلال مدة التفويض.',
+      fr: 'Le propriétaire soussigné mandate l’agence {agency} pour présenter le bien désigné ci-dessus {purpose} et lui trouver {party} aux conditions du présent mandat, pendant toute sa durée. L’agence assure la publicité, les visites et la négociation, et ne signe aucun acte au nom du propriétaire. Le propriétaire s’engage à fournir les documents nécessaires, à permettre les visites et à informer l’agence de tout changement de prix ou de situation du bien. La commission convenue est due à l’agence à la conclusion de l’acte avec tout {party} présenté par elle pendant la durée du mandat.',
+      es: 'El propietario abajo firmante encarga a la agencia {agency} presentar el inmueble arriba indicado {purpose} y encontrarle {party} en las condiciones de este mandato, durante toda su duración. La agencia se ocupa de la publicidad, las visitas y la negociación, y no firma ningún contrato en nombre del propietario. El propietario se compromete a facilitar los documentos necesarios, permitir las visitas e informar a la agencia de cualquier cambio de precio o de situación del inmueble. La comisión acordada se debe a la agencia al firmarse el contrato con cualquier {party} presentado por ella durante el mandato.',
+    },
+    mandate_exclusive: {
+      ar: 'تفويض حصري: يلتزم المالك طيلة مدة التفويض بعدم عرض العقار عن طريق وسيط آخر، وبإحالة كل شخص يتصل به مباشرة بشأن العقار على الوكالة.',
+      fr: 'Mandat exclusif : pendant toute la durée du mandat, le propriétaire s’engage à ne pas confier le bien à un autre intermédiaire et à orienter vers l’agence toute personne qui le contacterait directement au sujet du bien.',
+      es: 'Mandato exclusivo: durante todo el mandato, el propietario se compromete a no confiar el inmueble a otro intermediario y a remitir a la agencia a cualquier persona que le contacte directamente por el inmueble.',
+    },
     whatsapp_template: {
       ar: 'السلام عليكم، أنا مهتم بالعقار {ref} ({title}). هل يمكن الحصول على مزيد من المعلومات؟',
       fr: 'Bonjour, je suis intéressé(e) par le bien {ref} ({title}). Pourriez-vous m’en dire plus ?',

@@ -6,6 +6,7 @@ import { useSaveSettings, useSettings, useTable } from '@/shared/lib/data'
 import { download, fmtNumber, slugify, toCsv } from '@/shared/lib/format'
 import { resizeImage } from '@/shared/lib/images'
 import { logActivity, repo, TABLE, type TableName } from '@/shared/lib/repo'
+import { DEFAULT_SETTINGS } from '@/shared/lib/config'
 import type { AgencySettings, CatalogSettings, Lead, Neighborhood, Property, Settings as SettingsT, SiteSettings, Testimonial } from '@/shared/lib/types'
 import { Button, Field, Input, useConfirm } from '@/shared/ui/base'
 import { LocationPicker } from '@/shared/ui/map'
@@ -67,7 +68,7 @@ export function Settings() {
         {tab === 'site' && <SiteForm key={JSON.stringify(s.site)} value={s.site} />}
         {tab === 'testimonials' && <TestimonialsForm key={JSON.stringify(s.site.testimonials)} site={s.site} />}
         {tab === 'areas' && <AreasForm key={JSON.stringify(s.catalog)} value={s.catalog} />}
-        {tab === 'docs' && <DocsForm key={JSON.stringify(s.site.visit_clause)} site={s.site} />}
+        {tab === 'docs' && <DocsForm key={JSON.stringify([s.site.visit_clause, s.site.mandate_clause, s.site.mandate_exclusive])} site={s.site} />}
         {tab === 'commission' && <CommissionTab />}
         {tab === 'fees' && <FeesTab />}
         {tab === 'data' && <DataTab />}
@@ -353,14 +354,22 @@ function AreasForm({ value }: { value: CatalogSettings }) {
 /* ------------------------------------------------------------------ */
 function DocsForm({ site }: { site: SiteSettings }) {
   const [clause, setClause] = useState(site.visit_clause)
+  const [mandate, setMandate] = useState(site.mandate_clause ?? DEFAULT_SETTINGS.site.mandate_clause!)
+  const [exclusive, setExclusive] = useState(site.mandate_exclusive ?? DEFAULT_SETTINGS.site.mandate_exclusive!)
   const { save, pending } = useSaveSection()
   return (
     <>
       <Card title="نص الالتزام في «ورقة الزيارة»">
         <L10nField label="النص" value={clause} onChange={setClause} multiline rows={4} hint="{agency} = اسم الوكالة. تُطبع النسختان العربية والفرنسية في الورقة." />
-        <p className="mt-4 rounded-xl bg-warning/10 px-3 py-2.5 text-xs leading-relaxed text-warning">نصيحة: اعرض هذا النص على موثق أو محامٍ للتأكد من صيغته القانونية قبل اعتماده مع العملاء.</p>
       </Card>
-      <SaveBar pending={pending} onSave={() => void save('site', { ...site, visit_clause: clause }, 'نص ورقة الزيارة')} />
+      <Card title="نص «التفويض بالبيع أو الكراء»" className="mt-6">
+        <L10nField label="النص الرئيسي" value={mandate} onChange={setMandate} multiline rows={5} hint="{agency} = اسم الوكالة، {purpose} = للبيع أو للكراء، {party} = مشترٍ أو مكترٍ." />
+        <div className="mt-4">
+          <L10nField label="فقرة التفويض الحصري" value={exclusive} onChange={setExclusive} multiline rows={3} hint="تُطبع فقط حين يكون التفويض حصرياً." />
+        </div>
+      </Card>
+      <p className="mt-4 rounded-xl bg-warning/10 px-3 py-2.5 text-xs leading-relaxed text-warning">نصيحة: اعرض هذه النصوص على موثق أو محامٍ للتأكد من صيغتها القانونية قبل اعتمادها مع العملاء.</p>
+      <SaveBar pending={pending} onSave={() => void save('site', { ...site, visit_clause: clause, mandate_clause: mandate, mandate_exclusive: exclusive }, 'نصوص الوثائق')} />
     </>
   )
 }

@@ -17,6 +17,7 @@ const Agency = lazy(() => import('./apps/site/pages/Agency').then((m) => ({ defa
 const Contact = lazy(() => import('./apps/site/pages/Contact').then((m) => ({ default: m.Contact })))
 const Favorites = lazy(() => import('./apps/site/pages/Favorites').then((m) => ({ default: m.Favorites })))
 const Costs = lazy(() => import('./apps/site/pages/Costs').then((m) => ({ default: m.Costs })))
+const OwnerReportPage = lazy(() => import('./apps/site/pages/OwnerReport').then((m) => ({ default: m.OwnerReportPage })))
 const NotFound = lazy(() => import('./apps/site/pages/NotFound').then((m) => ({ default: m.NotFound })))
 const AdminApp = lazy(() => import('./apps/admin/AdminApp'))
 
@@ -45,6 +46,7 @@ export function App() {
                 <Route path="contact" element={<Contact />} />
                 <Route path="favoris" element={<Favorites />} />
                 <Route path="frais" element={<Costs />} />
+                <Route path="proprietaire/:token" element={<OwnerReportPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
               <Route

@@ -3,7 +3,9 @@ import { toast } from 'sonner'
 import { FEATURES, SITE_URL } from '@/shared/lib/config'
 import { fmtDate, fmtNumber, fmtPhone, fmtPrice, fmtTime, interpolate, pick } from '@/shared/lib/format'
 import { translate } from '@/shared/lib/i18n'
-import type { Appointment, Client, Property, Settings } from '@/shared/lib/types'
+import { daysOnMarket } from '@/shared/lib/owners'
+import type { Appointment, Client, Mandate, OwnerReport, Property, Settings } from '@/shared/lib/types'
+import { KEYS, MANDATE_KIND, PROPERTY_STATUS } from './labels'
 
 const esc = (s: string | number | null | undefined) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
@@ -172,4 +174,68 @@ export function printCostQuote(title: string, intro: string, rows: { label: stri
   </tbody></table>
   ${notes.map((n) => `<div class="clause">${esc(n)}</div>`).join('')}`
   openPrint(title, body)
+}
+
+/** Bilingual mandate (authorisation to sell / rent) signed by the owner. */
+export function printMandate(m: Mandate, p: Property, owner: Client | undefined, s: Settings, hoodName: (id: string) => string) {
+  const agency = pick(s.agency.name, 'ar')
+  const agencyFr = pick(s.agency.name, 'fr')
+  const rent = m.purpose === 'rent'
+  const no = m.id.replace(/[^a-z0-9]/gi, '').slice(-6).toUpperCase()
+  const row = (ar: string, fr: string, v: string) => `<tr><th>${esc(ar)}<small>${esc(fr)}</small></th><td>${v}</td></tr>`
+  const blank = '<span style="color:#b9ad92">............................................</span>'
+  const money = (n: number | null | undefined) => (n == null ? blank : `<span class="num">${esc(fmtPrice(n, 'fr', rent))}</span>`)
+  const commission =
+    m.commission_amount != null && m.commission_amount > 0
+      ? `<span class="num">${esc(fmtPrice(m.commission_amount, 'fr'))}</span>`
+      : m.commission_rate != null && m.commission_rate > 0
+        ? rent
+          ? `<span class="num">${esc(m.commission_rate)}</span> شهر كراء · mois de loyer`
+          : `<span class="num">${esc(m.commission_rate)}%</span> من الثمن · du prix`
+        : blank
+  const vars = (lang: 'ar' | 'fr') => ({
+    agency: lang === 'ar' ? agency : agencyFr,
+    purpose: lang === 'ar' ? (rent ? 'للكراء' : 'للبيع') : rent ? 'à la location' : 'à la vente',
+    party: lang === 'ar' ? (rent ? 'مكترٍ' : 'مشترٍ') : rent ? 'locataire' : 'acquéreur',
+  })
+  const clause = s.site.mandate_clause
+  const exclusive = s.site.mandate_exclusive
+  const body = `${header(s)}
+  <div class="vtitle"><h1>${rent ? 'تفويض بالكراء · Mandat de location' : 'تفويض بالبيع · Mandat de vente'}</h1><div class="no">${esc(MANDATE_KIND[m.kind].label)} · ${m.kind === 'exclusive' ? 'Exclusif' : 'Simple'} · N° <span class="num">${esc(no)}</span></div></div>
+  <table class="v">
+    ${row('المالك', 'Propriétaire', owner ? esc(owner.full_name) : blank)}
+    ${row('رقم البطاقة الوطنية', 'CIN', blank)}
+    ${row('الهاتف', 'Téléphone', owner?.phone ? `<span class="num">${esc(fmtPhone(owner.phone))}</span>` : blank)}
+    ${row('العقار', 'Bien', `<b class="num">${esc(p.ref)}</b> — ${esc(translate(`type.${p.type}`, 'ar'))} · ${esc(hoodName(p.neighborhood))}${p.address ? ` · ${esc(p.address)}` : ''}<br><span style="color:#5b6475">${esc(p.title)}</span>`)}
+    ${row('رقم الرسم العقاري', 'Titre foncier', blank)}
+    ${row(rent ? 'ثمن الكراء المعروض' : 'الثمن المعروض', rent ? 'Loyer demandé' : 'Prix demandé', money(m.price ?? p.price))}
+    ${row(rent ? 'الصافي للمالك' : 'الصافي للبائع', 'Net propriétaire', money(m.net_price))}
+    ${row('عمولة الوكالة على المالك', 'Commission due par le propriétaire', commission)}
+    ${row('مدة التفويض', 'Durée du mandat', `<span class="num">${esc(fmtDate(m.start_date, 'fr'))}</span> — <span class="num">${m.end_date ? esc(fmtDate(m.end_date, 'fr')) : blank}</span>`)}
+    ${row('المفاتيح', 'Clés', `${esc(KEYS[m.keys])}${m.keys_notes ? ` · ${esc(m.keys_notes)}` : ''}`)}
+    ${row('شروط الزيارة', 'Conditions de visite', m.visit_terms ? esc(m.visit_terms) : blank)}
+  </table>
+  ${clause ? `<div class="clause">${esc(interpolate(pick(clause, 'ar'), vars('ar')))}</div><div class="clause fr">${esc(interpolate(clause.fr || '', vars('fr')))}</div>` : ''}
+  ${m.kind === 'exclusive' && exclusive ? `<div class="clause"><b>${esc(interpolate(pick(exclusive, 'ar'), vars('ar')))}</b></div><div class="clause fr"><b>${esc(interpolate(exclusive.fr || '', vars('fr')))}</b></div>` : ''}
+  <div class="sign"><div>توقيع المالك مع عبارة «قرأت ووافقت»<br><span class="fr">Signature du propriétaire, précédée de « lu et approuvé »</span></div><div>توقيع وختم الوكالة<br><span class="fr">Signature et cachet de l’agence</span></div></div>
+  <div class="small">حُرر في نسختين · Fait en deux exemplaires · ${esc(fmtDate(new Date().toISOString(), 'fr'))}</div>`
+  openPrint(`${rent ? 'Mandat de location' : 'Mandat de vente'} ${p.ref}`, body)
+}
+
+/** The owner's activity report, with a QR code to his private follow-up page. */
+export async function printOwnerReport(r: OwnerReport, ownerName: string, link: string | null, s: Settings) {
+  const qr = link ? await QRCode.toDataURL(link, { margin: 1, width: 320, color: { dark: '#0b1b33', light: '#ffffff' } }) : null
+  const rows = r.properties
+    .map((p) => {
+      const first = p.prices[0]?.price
+      const change = first && first !== p.price ? ` <small>(${p.price < first ? '-' : '+'}${Math.abs(Math.round(((p.price - first) / first) * 100))}%)</small>` : ''
+      return `<tr><td class="num"><b>${esc(p.ref)}</b></td><td>${esc(p.title)}<br><small style="color:#5b6475">${esc(PROPERTY_STATUS[p.status].label)}${p.mandate ? ` · ${esc(MANDATE_KIND[p.mandate.kind].label)}` : ''}</small></td><td class="num">${esc(fmtPrice(p.price, 'fr', p.purpose === 'rent'))}${change}</td><td class="num">${daysOnMarket(p.created_at)}</td><td class="num">${p.views}</td><td class="num">${p.leads}</td><td class="num">${p.visits_done}${p.visits_planned ? ` + ${p.visits_planned}` : ''}</td></tr>`
+    })
+    .join('')
+  const body = `${header(s)}
+  <div class="vtitle"><h1>تقرير المالك · Rapport propriétaire</h1><div class="no">${esc(ownerName)} · ${esc(fmtDate(r.generated_at, 'fr'))}</div></div>
+  <table class="v" style="font-size:12px"><thead><tr><th style="width:auto">المرجع</th><th style="width:auto">العقار</th><th style="width:auto">الثمن</th><th style="width:auto">أيام العرض</th><th style="width:auto">المشاهدات</th><th style="width:auto">الطلبات</th><th style="width:auto">الزيارات</th></tr></thead><tbody>${rows || '<tr><td colspan="7">—</td></tr>'}</tbody></table>
+  <p style="font-size:11px;color:#5b6475">الزيارات: المنجزة + المبرمجة · Visites : effectuées + prévues</p>
+  ${qr ? `<div class="foot"><img src="${qr}" alt="QR"><div class="t">امسح الرمز لمتابعة عقاركم مباشرة في أي وقت<br><span class="fr">Scannez pour suivre votre bien en direct</span></div></div>` : ''}`
+  openPrint(`Rapport ${ownerName}`, body)
 }

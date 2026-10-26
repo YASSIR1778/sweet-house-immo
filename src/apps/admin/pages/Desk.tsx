@@ -1,16 +1,17 @@
-import { AlarmClock, Building, CalendarPlus, Check, ClipboardPlus, Copy, Inbox, PhoneIncoming, PhoneOutgoing, Printer, Search, UserPlus, UserX } from 'lucide-react'
+import { AlarmClock, Building, CalendarPlus, Check, ClipboardPlus, Copy, FolderLock, Inbox, PhoneIncoming, PhoneOutgoing, Printer, Search, UserPlus, UserX } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { SITE_URL } from '@/shared/lib/config'
 import { useTable } from '@/shared/lib/data'
 import { addDays, fmtDate, fmtPrice, fmtRelative, fmtTime, nowIso, sameDay, waLink } from '@/shared/lib/format'
-import type { Appointment, CallLog, Lead, Property, Task } from '@/shared/lib/types'
+import { mandateState } from '@/shared/lib/owners'
+import type { Appointment, CallLog, Lead, Mandate, Property, Task } from '@/shared/lib/types'
 import { cn } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useQuickAdd } from '../dialogs'
 import { firstName, greeting, useLookups, useMe, useNames, useSave } from '../hooks'
-import { APPT_KIND, APPT_STATUS, LEAD_KIND, PRIORITY, PROPERTY_STATUS, PURPOSE } from '../labels'
+import { APPT_KIND, APPT_STATUS, LEAD_KIND, PRIORITY, PROPERTY_STATUS, PURPOSE, daysAr } from '../labels'
 import { printVisitVoucher } from '../print'
 import { leadReply, propertyMessage, visitReminder } from '../templates'
 import { Card, MiniEmpty, PageHeader, PhoneLinks, Pill, SearchBox } from '../ui'
@@ -35,6 +36,11 @@ export function Desk() {
   const { data: leads = [] } = useTable<Lead>('leads', { refetchInterval: 60_000 })
   const { data: tasks = [] } = useTable<Task>('tasks')
   const { data: calls = [] } = useTable<CallLog>('calls')
+  const { data: mandates = [] } = useTable<Mandate>('mandates')
+  const mandatesDue = mandates
+    .map((m) => ({ m, ...mandateState(m) }))
+    .filter((x) => x.state === 'expiring' || x.state === 'expired')
+    .sort((a, b) => (a.daysLeft ?? 0) - (b.daysLeft ?? 0))
   const saveAppt = useSave<Appointment>('appointments', 'appointment', (a) => a.title)
   const saveLead = useSave<Lead>('leads', 'lead', (l) => l.name)
   const saveTask = useSave<Task>('tasks', 'task', (t) => t.title)
@@ -238,6 +244,31 @@ export function Desk() {
             )}
             {find && found.length === 0 && <p className="mt-3 text-center text-sm text-muted">لا توجد نتائج</p>}
           </Card>
+
+          {mandatesDue.length > 0 && (
+            <Card title={`تفويضات تحتاج تجديداً (${mandatesDue.length})`} icon={<FolderLock className="size-4" />} action={<Link to="/admin/owners" className="text-xs font-semibold text-teal hover:underline">ملفات الملاك</Link>} bodyClass="p-0">
+              <ul className="divide-y divide-line">
+                {mandatesDue.slice(0, 6).map(({ m, state, daysLeft }) => {
+                  const p = L.property(m.property_id)
+                  const c = L.client(m.owner_client_id ?? p?.owner_client_id)
+                  return (
+                    <li key={m.id}>
+                      <Link to={c ? `/admin/owners?open=${c.id}` : `/admin/properties/${m.property_id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-ivory">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-navy">
+                            <span className="num text-gold-700">{p?.ref ?? '—'}</span> {c?.full_name ?? ''}
+                          </span>
+                          <span className={cn('text-xs font-semibold', state === 'expired' ? 'text-danger' : 'text-warning')}>
+                            {state === 'expired' ? `انتهى منذ ${daysAr(daysLeft ?? 0)}` : daysLeft === 0 ? 'ينتهي اليوم' : `باقي ${daysAr(daysLeft ?? 0)}`}
+                          </span>
+                        </span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </Card>
+          )}
 
           <Card title="مهامي" icon={<ClipboardPlus className="size-4" />} action={<button onClick={() => quick('task')} className="text-xs font-semibold text-teal hover:underline">+ مهمة</button>} bodyClass="p-0">
             {myTasks.length === 0 ? (

@@ -7,15 +7,17 @@ import { useTable } from '@/shared/lib/data'
 import { fmtDate, fmtNumber, nowIso, uid, youtubeId } from '@/shared/lib/format'
 import { resizeImage } from '@/shared/lib/images'
 import { repo } from '@/shared/lib/repo'
-import type { Property, PropertyStatus, PropertyType, Purpose } from '@/shared/lib/types'
+import { currentMandate, mandateState } from '@/shared/lib/owners'
+import type { Mandate, Property, PropertyStatus, PropertyType, Purpose } from '@/shared/lib/types'
 import { Button, Field, FullSpinner, Input, Segmented, Select, Switch, Textarea, cn } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { LocationPicker } from '@/shared/ui/map'
 import { useClientOptions } from '../dialogs'
 import { useBrokerOptions } from '../network-dialogs'
-import { errorText, nextRef, useCan, useDeleteRow, useMe, useNames, useSave } from '../hooks'
+import { DocumentsPanel, MandateDialog, MandatePill, PriceHistory, renewalOf } from '../owners'
+import { errorText, nextRef, useCan, useDeleteRow, useLookups, useMe, useNames, useSave } from '../hooks'
 import { PROPERTY_STATUS } from '../labels'
-import { printPropertySheet } from '../print'
+import { printMandate, printPropertySheet } from '../print'
 import { propertyMessage } from '../templates'
 import { Card, Combo } from '../ui'
 
@@ -202,6 +204,9 @@ export function PropertyEditor() {
   const { s, hoodName, typeName } = useNames()
   const ownerOptions = useClientOptions()
   const brokerOptions = useBrokerOptions()
+  const { data: mandates = [] } = useTable<Mandate>('mandates')
+  const [mandateOpen, setMandateOpen] = useState<Partial<Mandate> | null>(null)
+  const ownerOf = useLookups().client
   const existing = id ? props.find((p) => p.id === id) : undefined
   const [f, setF] = useState<Property | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -537,6 +542,41 @@ export function PropertyEditor() {
                 <Field label="مالك العقار">
                   <Combo value={f.owner_client_id} onChange={(v) => set('owner_client_id', v)} options={ownerOptions} placeholder="اختر من العملاء" />
                 </Field>
+                {!isNew && (
+                  <div className="rounded-xl border border-gold/30 bg-gold/5 p-3">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-gold-700">التفويض</span>
+                      <MandatePill m={currentMandate(mandates, f.id)} />
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(() => {
+                        const m = currentMandate(mandates, f.id)
+                        return (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => setMandateOpen(m ?? {})}>
+                              {m ? 'تفاصيل التفويض' : 'تسجيل تفويض'}
+                            </Button>
+                            {m && (
+                              <Button size="sm" variant="ghost" icon={<Printer className="size-4" />} onClick={() => printMandate(m, f, ownerOf(m.owner_client_id), s, hoodName)}>
+                                طباعة
+                              </Button>
+                            )}
+                            {m && mandateState(m).state !== 'active' && (
+                              <Button size="sm" variant="ghost" onClick={() => setMandateOpen(renewalOf(m))}>
+                                تجديد
+                              </Button>
+                            )}
+                          </>
+                        )
+                      })()}
+                    </div>
+                    {f.owner_client_id && (
+                      <Link to={`/admin/owners?open=${f.owner_client_id}`} className="mt-2 inline-block text-xs font-semibold text-teal hover:underline">
+                        ملف المالك الكامل
+                      </Link>
+                    )}
+                  </div>
+                )}
                 <Field label="جاء عن طريق وسيط أو منعش" hint="لا يظهر في الموقع. تُقترح حصته عند تسجيل الصفقة.">
                   <Combo value={f.broker_id ?? null} onChange={(v) => set('broker_id', v)} options={brokerOptions} placeholder="لا أحد: عقار مباشر من المالك" />
                 </Field>
@@ -545,6 +585,9 @@ export function PropertyEditor() {
                 </Field>
               </div>
             </Card>
+
+            {!isNew && <DocumentsPanel propertyId={f.id} clientId={f.owner_client_id} title="وثائق العقار" />}
+            {!isNew && <PriceHistory propertyId={f.id} rent={f.purpose === 'rent'} />}
 
             {!isNew && (
               <Card title="أدوات">
@@ -568,6 +611,8 @@ export function PropertyEditor() {
           </div>
         </aside>
       </div>
+
+      {mandateOpen && <MandateDialog key={mandateOpen.id ?? 'new'} property={f} initial={mandateOpen} onClose={() => setMandateOpen(null)} />}
 
       <div className="fixed inset-x-0 bottom-0 z-40 flex gap-2 border-t border-line bg-white/95 p-3 backdrop-blur lg:hidden">
         <Button variant="ghost" className="flex-1" onClick={() => nav('/admin/properties')}>

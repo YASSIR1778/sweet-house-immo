@@ -79,6 +79,10 @@ export interface Client {
   notes: string | null
   /** partner broker who brought this client */
   broker_id?: string | null
+  /** secret of the owner's private follow-up link (null = no link) */
+  share_token?: string | null
+  /** when the owner last received a report */
+  last_report_at?: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -180,6 +184,89 @@ export interface DealShare {
   /** paid to this partner so far (dirhams) */
   paid: number
   paid_at: string | null
+}
+
+/* ---------------------------------------------------------------- owners */
+export type MandateKind = 'exclusive' | 'simple'
+export type KeysHolder = 'agency' | 'owner' | 'concierge' | 'none'
+export type MandateStatus = 'active' | 'ended' | 'cancelled'
+/** Authorisation given by an owner to sell or rent a property. */
+export interface Mandate {
+  id: string
+  property_id: string
+  owner_client_id: string | null
+  kind: MandateKind
+  purpose: Purpose
+  start_date: string
+  end_date: string | null
+  price: number | null
+  net_price: number | null
+  min_price: number | null
+  /** sale: % of the price ; rent: months of rent */
+  commission_rate: number | null
+  /** or a fixed amount in dirhams */
+  commission_amount: number | null
+  keys: KeysHolder
+  keys_notes: string | null
+  visit_terms: string | null
+  signed: boolean
+  status: MandateStatus
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type DocKind = 'title' | 'plan' | 'id' | 'mandate' | 'contract' | 'permit' | 'tax' | 'other'
+/** A private file (title deed, plans, ID copy, signed mandate…) of an owner or a property. */
+export interface PropertyDocument {
+  id: string
+  client_id: string | null
+  property_id: string | null
+  kind: DocKind
+  title: string
+  /** path in the private storage bucket (demo: a data URL) */
+  path: string
+  file_name: string
+  mime: string | null
+  size: number | null
+  expires_at: string | null
+  uploaded_by: string | null
+  created_at: string
+}
+
+export interface PriceChange {
+  id: string
+  property_id: string
+  old_price: number | null
+  new_price: number
+  changed_by: string | null
+  created_at: string
+}
+
+/** What an owner sees through his private link. */
+export interface OwnerReport {
+  name: string
+  lang: Lang
+  generated_at: string
+  properties: {
+    ref: string
+    title: string
+    purpose: Purpose
+    type: PropertyType
+    status: PropertyStatus
+    published: boolean
+    price: number
+    image: string | null
+    views: number
+    created_at: string
+    leads: number
+    visits_done: number
+    visits_planned: number
+    last_visit: string | null
+    prices: { price: number; at: string }[]
+    mandate: { kind: MandateKind; start_date: string; end_date: string | null } | null
+  }[]
 }
 
 /* ---------------------------------------------------------------- network */
@@ -286,6 +373,10 @@ export interface SiteSettings {
   whatsapp_template: L10n
   /** commitment printed on the visit voucher (bon de visite) */
   visit_clause: L10n
+  /** main text of the mandate printed for the owner */
+  mandate_clause?: L10n
+  /** extra paragraph of an exclusive mandate */
+  mandate_exclusive?: L10n
 }
 
 export interface CatalogSettings {
