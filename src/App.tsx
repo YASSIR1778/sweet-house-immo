@@ -5,6 +5,7 @@ import { Toaster } from 'sonner'
 import { AuthProvider } from '@/shared/lib/auth'
 import { I18nProvider, useI18n } from '@/shared/lib/i18n'
 import { ConfirmProvider, FullSpinner } from '@/shared/ui/base'
+import { ErrorBoundary } from '@/shared/ui/error-boundary'
 import { SiteLayout } from './apps/site/Layout'
 import { Home } from './apps/site/pages/Home'
 
@@ -32,6 +33,7 @@ export function App() {
       <I18nProvider>
         <ConfirmProvider>
           <BrowserRouter basename={basename}>
+            <ErrorBoundary>
             <Routes>
               <Route element={<SiteLayout />}>
                 <Route index element={<Home />} />
@@ -54,6 +56,7 @@ export function App() {
                 }
               />
             </Routes>
+            </ErrorBoundary>
           </BrowserRouter>
           <AppToaster />
         </ConfirmProvider>
