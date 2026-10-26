@@ -1,9 +1,10 @@
-import { CalendarPlus, ClipboardPlus, ExternalLink, Inbox, KanbanSquare, List, Plus, Trash2, UserCheck, UserPlus } from 'lucide-react'
+import { CalendarPlus, ClipboardPlus, ExternalLink, Inbox, KanbanSquare, List, Plus, Sun, Trash2, UserCheck, UserPlus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useTable } from '@/shared/lib/data'
 import { fmtDate, fmtDateTime, fmtNumber, fmtPrice, fmtRelative, nowIso } from '@/shared/lib/format'
-import type { Lead, LeadKind, LeadSource, LeadStatus } from '@/shared/lib/types'
+import { guestsText, isFree, nightsBetween, nightsText, quote, seasonOf } from '@/shared/lib/seasonal'
+import type { Booking, BookingSource, Lead, LeadKind, LeadSource, LeadStatus } from '@/shared/lib/types'
 import { Button, Drawer, Field, Segmented, Select, Textarea, cn } from '@/shared/ui/base'
 import { StaffSelect, useQuickAdd } from '../dialogs'
 import { BulkBar, CheckAll, CheckCell, bulkBtn, useBulkDelete, useBulkSave, useSelection } from '../bulk'
@@ -300,8 +301,38 @@ function LeadDrawer({ lead, onClose }: { lead: Lead; onClose: () => void }) {
   const p = L.property(lead.property_id) ?? L.properties.find((x) => x.ref === lead.property_ref)
   const client = L.client(lead.client_id) ?? L.clientByPhone(lead.phone)
   const meta = (lead.meta ?? {}) as Record<string, unknown>
+  const { data: bookings = [] } = useTable<Booking>('bookings', { enabled: lead.kind === 'booking' })
+  // a summer stay asked from the website: dates, guests, price and whether the nights are still free
+  const stay = lead.kind === 'booking' ? (meta.booking as { check_in?: string; check_out?: string; guests?: number } | undefined) : undefined
+  const stayDates = stay?.check_in && stay.check_out && stay.check_out > stay.check_in ? { check_in: stay.check_in, check_out: stay.check_out } : null
+  const stayQuote = stayDates && p?.seasonal ? quote(seasonOf(p.season), stayDates.check_in, stayDates.check_out, stay?.guests ?? 2) : null
+  const stayFree = stayDates && p ? isFree(bookings, p.id, stayDates.check_in, stayDates.check_out) : true
+  const booked = lead.kind === 'booking' ? bookings.find((b) => b.lead_id === lead.id) : undefined
 
   const update = (patch: Partial<Lead>, opts?: Parameters<typeof save>[1]) => save({ ...lead, ...patch, updated_at: nowIso() }, opts)
+
+  const toBooking = () => {
+    if (booked) return quick('booking', booked)
+    const sources: BookingSource[] = ['website', 'phone', 'whatsapp', 'walkin']
+    const initial: Partial<Booking> = {
+      status: 'request',
+      source: sources.includes(lead.source as BookingSource) ? (lead.source as BookingSource) : 'other',
+      guests: stay?.guests ?? 2,
+      guest_name: lead.name,
+      guest_phone: lead.phone,
+      guest_lang: lead.lang,
+      client_id: client?.id ?? null,
+      lead_id: lead.id,
+      notes: lead.message,
+      ...(p?.seasonal ? { property_id: p.id } : {}),
+      ...(stayDates ?? {}),
+    }
+    quick('booking', initial, (row) => {
+      const b = row as Booking
+      const status: LeadStatus = b.status === 'request' ? 'negotiation' : 'won'
+      void update({ status, client_id: lead.client_id ?? b.client_id, assigned_to: lead.assigned_to ?? me.id }, { action: 'status', silent: true, meta: { status } })
+    })
+  }
 
   const toClient = () => {
     if (client) {
@@ -449,6 +480,34 @@ function LeadDrawer({ lead, onClose }: { lead: Lead; onClose: () => void }) {
           </div>
         )}
         {meta.alert === true && <p className="rounded-xl bg-gold/10 px-3 py-2 text-xs text-gold-700">طلب تنبيه: يريد أن نخبره عند توفر عقار يناسب بحثه.</p>}
+
+        {lead.kind === 'booking' && (
+          <div className="space-y-3 rounded-2xl border border-[#0891b2]/30 bg-[#0891b2]/5 p-4 text-sm">
+            <span className="label">الإقامة المطلوبة</span>
+            {stayDates ? (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-navy">
+                <span>
+                  من <b>{fmtDate(stayDates.check_in, 'ar', { weekday: 'short', day: 'numeric', month: 'short' })}</b> إلى <b>{fmtDate(stayDates.check_out, 'ar', { weekday: 'short', day: 'numeric', month: 'short' })}</b>
+                </span>
+                <span className="num text-muted">
+                  {nightsText(nightsBetween(stayDates.check_in, stayDates.check_out), 'ar')} · {guestsText(stay?.guests ?? 2, 'ar')}
+                </span>
+              </div>
+            ) : (
+              <p className="text-muted">لم يحدد التواريخ.</p>
+            )}
+            {stayQuote && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted">التقدير حسب أثمنة العقار:</span>
+                <b className="num text-navy">{fmtNumber(stayQuote.total)} د.م.</b>
+                <Pill color={stayFree ? '#15803d' : '#b91c1c'}>{stayFree ? 'الليالي متاحة' : 'الليالي محجوزة'}</Pill>
+              </div>
+            )}
+            <Button size="sm" variant={booked ? 'outline' : 'primary'} icon={<Sun className="size-4" />} onClick={toBooking}>
+              {booked ? 'فتح الحجز المسجل' : 'تحويل إلى حجز'}
+            </Button>
+          </div>
+        )}
 
         <Field label="المكلف بالطلب">
           <StaffSelect value={lead.assigned_to} onChange={(v) => void update({ assigned_to: v }, { message: 'تم تعيين المكلف' })} />

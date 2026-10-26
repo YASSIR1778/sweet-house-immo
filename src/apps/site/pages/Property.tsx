@@ -1,4 +1,4 @@
-import { Bath, BedDouble, Building, CalendarCheck, CalendarDays, Check, ChevronLeft, ChevronRight, Eye, Layers, MapPin, Maximize2, Phone, Printer, Ruler, Sofa, Star, Calculator, Home } from 'lucide-react'
+import { Bath, BedDouble, Building, CalendarCheck, CalendarDays, Check, ChevronLeft, ChevronRight, Eye, Layers, MapPin, Maximize2, Phone, Printer, Ruler, Sofa, Star, Calculator, Home, Sun } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
@@ -6,6 +6,7 @@ import { FEATURES } from '@/shared/lib/config'
 import { usePublicProperties, usePublicProperty } from '@/shared/lib/data'
 import { fmtNumber, fmtPhone, fmtPrice, telLink, waLink, youtubeId } from '@/shared/lib/format'
 import { repo } from '@/shared/lib/repo'
+import { fromNight, seasonOf } from '@/shared/lib/seasonal'
 import { toEur } from '@/shared/lib/valuation'
 import type { Property } from '@/shared/lib/types'
 import { Badge, Button, ButtonLink, Field, Modal, Skeleton, cn } from '@/shared/ui/base'
@@ -14,6 +15,7 @@ import { LogoMark } from '@/shared/ui/logo'
 import { BuyerCostsBox } from '@/shared/ui/calculators'
 import { PropertyMap } from '@/shared/ui/map'
 import { FavButton, LeadForm, PropertyCard, SectionHead, ShareButton } from '../components'
+import { SeasonalBox } from '../stay'
 import { cityName, jsonLd, placeLabel, propertyDesc, propertyTitle, propertyUrl, usePageMeta, useSite, waPropertyText } from '../site'
 
 function Spec({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
@@ -82,7 +84,11 @@ export function PropertyPage() {
   const [visit, setVisit] = useState(false)
 
   const title = p ? propertyTitle(p, lang) : ''
-  usePageMeta(p ? `${title} — ${fmtPrice(p.price, lang, p.purpose === 'rent')} | ${name}` : name, p ? propertyDesc(p, lang).slice(0, 160) : undefined, p?.images[0])
+  // rented by the night in summer: the price of a night and the booking box
+  const night = p?.purpose === 'rent' && p.seasonal ? fromNight(seasonOf(p.season)) : 0
+  const seasonal = night > 0
+  const shownPrice = p ? (seasonal ? `${t('stay.from', { price: fmtPrice(night, lang) })} ${t('stay.perNight')}` : fmtPrice(p.price, lang, p.purpose === 'rent')) : ''
+  usePageMeta(p ? `${title} — ${shownPrice} | ${name}` : name, p ? propertyDesc(p, lang).slice(0, 160) : undefined, p?.images[0])
 
   useEffect(() => {
     if (p?.id) void repo.incrementViews(p.id)
@@ -131,6 +137,7 @@ export function PropertyPage() {
     )
 
   const rent = p.purpose === 'rent'
+  const toBooking = () => document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   const waText = waPropertyText(s, p, lang)
   const Back = lang === 'ar' ? ChevronLeft : ChevronRight
 
@@ -151,6 +158,11 @@ export function PropertyPage() {
           <div>
             <div className="mb-3 flex flex-wrap gap-2">
               <Badge tone={rent ? 'teal' : 'gold'}>{rent ? t('p.forRent') : t('p.forSale')}</Badge>
+              {seasonal && (
+                <Badge tone="gold">
+                  <Sun className="size-3" /> {t('stay.badge')}
+                </Badge>
+              )}
               <Badge tone="neutral">{typeName(p.type)}</Badge>
               {p.featured && (
                 <Badge tone="navy">
@@ -168,9 +180,21 @@ export function PropertyPage() {
             </p>
           </div>
           <div className="flex flex-col items-start gap-2 lg:items-end">
-            <div className="num text-3xl font-extrabold text-navy md:text-4xl">{fmtPrice(p.price, lang, rent)}</div>
-            {!rent && p.area ? <div className="num text-sm text-muted">{t('p.pricePerM2', { n: fmtNumber(Math.round(p.price / p.area)) })}</div> : null}
-            {toEur(p.price, s.site.eur_rate ?? 0) ? <div className="num text-sm text-muted">{t('p.eur', { n: fmtNumber(toEur(p.price, s.site.eur_rate ?? 0)!) })}</div> : null}
+            {seasonal ? (
+              <>
+                <div className="num text-3xl font-extrabold text-navy md:text-4xl">
+                  {t('stay.from', { price: fmtPrice(night, lang) })} <span className="text-base font-semibold text-muted">{t('stay.perNight')}</span>
+                </div>
+                {toEur(night, s.site.eur_rate ?? 0) ? <div className="num text-sm text-muted">{t('p.eur', { n: fmtNumber(toEur(night, s.site.eur_rate ?? 0)!) })}</div> : null}
+                <div className="num text-xs text-subtle">{t('stay.monthly', { price: fmtPrice(p.price, lang) })}</div>
+              </>
+            ) : (
+              <>
+                <div className="num text-3xl font-extrabold text-navy md:text-4xl">{fmtPrice(p.price, lang, rent)}</div>
+                {!rent && p.area ? <div className="num text-sm text-muted">{t('p.pricePerM2', { n: fmtNumber(Math.round(p.price / p.area)) })}</div> : null}
+                {toEur(p.price, s.site.eur_rate ?? 0) ? <div className="num text-sm text-muted">{t('p.eur', { n: fmtNumber(toEur(p.price, s.site.eur_rate ?? 0)!) })}</div> : null}
+              </>
+            )}
             <div className="no-print mt-1 flex items-center gap-2">
               <ShareButton title={title} url={propertyUrl(p)} />
               <Button variant="outline" size="sm" onClick={() => window.print()} icon={<Printer className="size-4" />}>
@@ -186,6 +210,11 @@ export function PropertyPage() {
         <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_380px]">
           {/* ---------------- main */}
           <div className="space-y-10">
+            {seasonal && (
+              <div className="no-print">
+                <SeasonalBox p={p} />
+              </div>
+            )}
             <section>
               <h2 className="mb-4 text-xl font-bold text-navy">{t('p.details')}</h2>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -272,9 +301,15 @@ export function PropertyPage() {
                   <a href={telLink(s.agency.phone)} className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-navy font-bold text-white transition hover:bg-navy-800">
                     <Phone className="size-5" /> <span className="num" dir="ltr">{fmtPhone(s.agency.phone)}</span>
                   </a>
-                  <Button variant="gold" size="lg" onClick={() => setVisit(true)} icon={<CalendarCheck className="size-5" />}>
-                    {t('p.requestVisit')}
-                  </Button>
+                  {seasonal ? (
+                    <Button variant="gold" size="lg" onClick={toBooking} icon={<Sun className="size-5" />}>
+                      {t('stay.choose')}
+                    </Button>
+                  ) : (
+                    <Button variant="gold" size="lg" onClick={() => setVisit(true)} icon={<CalendarCheck className="size-5" />}>
+                      {t('p.requestVisit')}
+                    </Button>
+                  )}
                 </div>
                 <div className="mt-5 border-t border-line pt-5">
                   <h3 className="mb-3 text-sm font-bold text-navy">{t('form.inquiryTitle')}</h3>

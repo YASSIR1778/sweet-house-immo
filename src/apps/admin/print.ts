@@ -6,8 +6,9 @@ import { translate } from '@/shared/lib/i18n'
 import { amountInWordsFr } from '@/shared/lib/billing'
 import { daysOnMarket } from '@/shared/lib/owners'
 import { depositMax, monthName, rentFor } from '@/shared/lib/rentals'
+import { nightsBetween, seasonOf } from '@/shared/lib/seasonal'
 import type { Estimate, ValuationInput } from '@/shared/lib/valuation'
-import type { Appointment, BillingSettings, Client, InventoryState, Invoice, Lease, Mandate, OwnerReport, PayMethod, Payment, Property, RentPayment, Settings } from '@/shared/lib/types'
+import type { Appointment, BillingSettings, Booking, Client, InventoryState, Invoice, Lease, Mandate, OwnerReport, PayMethod, Payment, Property, RentPayment, Settings } from '@/shared/lib/types'
 import { KEYS, MANDATE_KIND, PAY_METHOD, PROPERTY_STATUS } from './labels'
 
 const esc = (s: string | number | null | undefined) =>
@@ -515,4 +516,59 @@ export function printValuation(input: ValuationInput, est: Estimate, s: Settings
   <div class="clause fr">Avis de valeur indicatif fondé sur les prix des biens comparables proposés et vendus par l’agence${est.basis === 'reference' ? ' et sur ses prix de référence' : ''} ; il ne constitue pas une expertise judiciaire. Le prix se confirme après visite du bien et examen de ses documents.</div>
   <div class="sign one"><div>توقيع وختم الوكالة<br><span class="fr">Cachet et signature de l’agence</span></div></div>`
   openPrint('Avis de valeur', body)
+}
+
+/* ------------------------------------------------------------------ */
+/* Seasonal stays                                                       */
+/* ------------------------------------------------------------------ */
+const GUEST_ID_FR: Record<string, string> = { cin: 'CIN', passport: 'Passeport', residence: 'Carte de séjour', other: 'Autre' }
+const GUEST_ID_AR: Record<string, string> = { cin: 'البطاقة الوطنية', passport: 'جواز السفر', residence: 'بطاقة الإقامة', other: 'وثيقة أخرى' }
+
+/** Booking confirmation for the guest: dates, times, price, deposit, caution. */
+export function printBookingConfirmation(b: Booking, p: Property, s: Settings, bill: BillingSettings, hoodName: (id: string) => string) {
+  const r = seasonOf(p.season)
+  const no = b.id.replace(/[^a-z0-9]/gi, '').slice(-6).toUpperCase()
+  const total = b.rent + b.cleaning
+  const nights = nightsBetween(b.check_in, b.check_out)
+  const body = `${header(s)}
+  ${b.status === 'cancelled' ? '<div class="void">ANNULÉE · ملغى</div>' : ''}
+  <div class="vtitle"><h1>وصل حجز · Confirmation de réservation</h1><div class="no">N° <span class="num">${esc(no)}</span> · ${esc(fmtDate(new Date().toISOString(), 'fr'))}</div></div>
+  <table class="v">
+    ${vrow('المسكن', 'Logement', `<b class="num">${esc(p.ref)}</b> — ${esc(translate(`type.${p.type}`, 'ar'))} · ${esc(hoodName(p.neighborhood))}${p.address ? ` · ${esc(p.address)}` : ''}<br><span style="color:#5b6475">${esc(p.title)}</span>`)}
+    ${vrow('الضيف', 'Client', `<b>${esc(b.guest_name)}</b>${b.guest_phone ? ` · <span class="num">${esc(b.guest_phone)}</span>` : ''} · <span class="num">${esc(b.guests)}</span> ${b.guests > 1 ? 'personnes' : 'personne'}`)}
+    ${vrow('الوصول', 'Arrivée', `<span class="num">${dmy(b.check_in)}</span> — à partir de <span class="num">${esc(r.check_in)}</span>`)}
+    ${vrow('المغادرة', 'Départ', `<span class="num">${dmy(b.check_out)}</span> — avant <span class="num">${esc(r.check_out)}</span> · <span class="num">${nights}</span> nuit${nights > 1 ? 's' : ''}`)}
+    ${vrow('الثمن', 'Prix', `Nuits <span class="num">${money2(b.rent)} DH</span>${b.cleaning ? ` + ménage <span class="num">${money2(b.cleaning)} DH</span>` : ''} = <b class="num">${money2(total)} DH</b>`)}
+    ${vrow('العربون والمؤدى', 'Acompte et versé', `Acompte demandé <span class="num">${money2(b.deposit)} DH</span> · versé <b class="num">${money2(b.paid)} DH</b> · reste <b class="num">${money2(Math.max(0, total - b.paid))} DH</b>`)}
+    ${b.caution ? vrow('الضمانة', 'Caution', `<span class="num">${money2(b.caution)} DH</span> <small>(تُرد بعد معاينة المسكن عند المغادرة · restituée après l’état des lieux de sortie)</small>`) : ''}
+    ${r.license ? vrow('رخصة الإيواء', 'Autorisation', `<span class="num">${esc(r.license)}</span>`) : ''}
+  </table>
+  <div class="clause">يُؤكد الحجز بعد أداء العربون. يُقدّم كل نزيل بالغ وثيقة هويته عند الوصول ويُوقع بطاقة الإيواء، طبقاً للقانون 80.14.</div>
+  <div class="clause fr">La réservation est confirmée à réception de l’acompte. Chaque voyageur adulte présente une pièce d’identité à l’arrivée et signe la fiche d’hébergement, conformément à la loi 80-14.</div>
+  <div class="sign one"><div>ختم وتوقيع الوكالة<br><span class="fr">Cachet et signature de l’agence</span></div></div>
+  <div class="legal">${legalLine(bill, s)}</div>`
+  openPrint(`Réservation ${p.ref} ${b.guest_name}`, body)
+}
+
+/** The guest's individual form (law 80-14, art. 37-38): signed at arrival, kept a year. */
+export function printGuestForm(b: Booking, p: Property, s: Settings, hoodName: (id: string) => string) {
+  const r = seasonOf(p.season)
+  const v = (x: string | null | undefined, cls = '') => (x ? `<span class="${cls}">${esc(x)}</span>` : BLANK)
+  const body = `${header(s)}
+  <div class="vtitle"><h1>بطاقة الإيواء الفردية · Bulletin individuel d’hébergement</h1><div class="no">${esc(p.ref)} · ${esc(hoodName(p.neighborhood))}${r.license ? ` · Autorisation <span class="num">${esc(r.license)}</span>` : ''}</div></div>
+  <table class="v">
+    ${vrow('الاسم الكامل', 'Nom et prénom', v(b.guest_name))}
+    ${vrow('تاريخ الازدياد', 'Date de naissance', b.guest_birth ? `<span class="num">${dmy(b.guest_birth)}</span>` : BLANK)}
+    ${vrow('الجنسية', 'Nationalité', v(b.guest_nationality))}
+    ${vrow('وثيقة الهوية', 'Pièce d’identité', b.guest_id_type ? `${esc(GUEST_ID_AR[b.guest_id_type])} · ${esc(GUEST_ID_FR[b.guest_id_type])} — ${v(b.guest_id_no, 'num')}` : BLANK)}
+    ${vrow('العنوان المعتاد', 'Adresse habituelle', v(b.guest_address))}
+    ${vrow('الهاتف', 'Téléphone', v(b.guest_phone, 'num'))}
+    ${vrow('الوصول', 'Date d’arrivée', `<span class="num">${dmy(b.check_in)}</span>`)}
+    ${vrow('المغادرة المتوقعة', 'Départ prévu', `<span class="num">${dmy(b.check_out)}</span>`)}
+    ${vrow('عدد المرافقين', 'Personnes accompagnantes', `<span class="num">${Math.max(0, b.guests - 1)}</span>`)}
+    ${vrow('المسكن', 'Logement', premises(p, s))}
+  </table>
+  <div class="sign"><div>توقيع النزيل<br><span class="fr">Signature du voyageur</span></div><div>توقيع المستغل<br><span class="fr">Signature de l’exploitant</span></div></div>
+  <div class="small">تُحفظ هذه البطاقة سنة وتُقدم عند الطلب لمصالح الأمن الوطني أو الدرك الملكي، ويُصرَّح بالوصول على منصة stdn.ma (القانون 80.14، المواد 36-38) · Fiche conservée un an et présentée sur demande à la Sûreté nationale ou à la Gendarmerie royale.</div>`
+  openPrint(`Fiche ${b.guest_name}`, body)
 }

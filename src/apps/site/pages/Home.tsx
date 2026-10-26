@@ -1,4 +1,4 @@
-import { Building2, Check, ChevronDown, Globe2, Home as HomeIcon, Key, Quote, Scale, ShieldCheck, Star } from 'lucide-react'
+import { Building2, Check, ChevronDown, Globe2, Home as HomeIcon, Key, Quote, Scale, ShieldCheck, Star, Sun } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useEffect, useMemo } from 'react'
 import { Link } from 'react-router'
@@ -21,6 +21,7 @@ export function Home() {
     return (f.length >= 3 ? f : all).slice(0, 6)
   }, [props])
   const latest = useMemo(() => (props ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 8), [props])
+  const summer = useMemo(() => (props ?? []).find((p) => p.seasonal && p.purpose === 'rent' && p.images.length > 0), [props])
   const hoods = useMemo(() => {
     const counts = new Map<string, number>()
     for (const p of props ?? []) counts.set(p.neighborhood, (counts.get(p.neighborhood) ?? 0) + 1)
@@ -143,6 +144,30 @@ export function Home() {
           </div>
         )}
       </section>
+
+      {/* ------------------------------------------------ SUMMER RENTALS */}
+      {summer && (
+        <section className="mx-auto max-w-7xl px-4 pb-20 md:px-6">
+          <Reveal>
+            <Link to="/sejours" className="group relative flex flex-col overflow-hidden rounded-[22px] bg-navy text-white shadow-card md:flex-row">
+              <div className="zoom-img h-52 overflow-hidden md:h-auto md:w-2/5">
+                <img src={summer.images[0]} alt="" className="h-full w-full object-cover" loading="lazy" />
+              </div>
+              <div className="relative flex flex-1 flex-col justify-center gap-3 p-6 md:p-10">
+                <div className="zellige absolute inset-0 opacity-[0.06]" />
+                <span className="eyebrow relative inline-flex items-center gap-2 text-gold-300">
+                  <Sun className="size-4" /> {t('nav.stays')}
+                </span>
+                <h2 className="font-display relative text-2xl leading-tight md:text-3xl">{t('stays.title')}</h2>
+                <p className="relative text-sm leading-relaxed text-white/75 md:text-base">{t('stays.text')}</p>
+                <span className="relative inline-flex items-center gap-2 font-bold text-gold-300">
+                  {t('stays.search')} <Arrow className="size-4 transition group-hover:translate-x-1 rtl:group-hover:-translate-x-1" />
+                </span>
+              </div>
+            </Link>
+          </Reveal>
+        </section>
+      )}
 
       {/* ------------------------------------------------ NEIGHBORHOODS */}
       <section className="zellige-soft relative overflow-hidden bg-sand/60 py-20">

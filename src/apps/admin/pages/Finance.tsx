@@ -4,9 +4,10 @@ import { Link, useSearchParams } from 'react-router'
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { invoiceRest, isOpenDeal, isOverdue, receivables, vatInvoiced, yearAccounts } from '@/shared/lib/billing'
 import { managementFees } from '@/shared/lib/rentals'
+import { seasonalFees } from '@/shared/lib/seasonal'
 import { useBilling, useTable } from '@/shared/lib/data'
 import { download, fmtDate, fmtNumber, localDate, toCsv } from '@/shared/lib/format'
-import type { BillingSettings, Deal, Expense, ExpenseCategory, Invoice, Lease, Payment, RentPayment } from '@/shared/lib/types'
+import type { BillingSettings, Booking, Deal, Expense, ExpenseCategory, Invoice, Lease, Payment, RentPayment } from '@/shared/lib/types'
 import { Button, EmptyState, Segmented, Select, cn } from '@/shared/ui/base'
 import { useQuickAdd } from '../dialogs'
 import { useCan, useLookups } from '../hooks'
@@ -34,6 +35,7 @@ export function Finance() {
   const { data: expenses = [] } = useTable<Expense>('expenses')
   const { data: leases = [] } = useTable<Lease>('leases')
   const { data: rents = [] } = useTable<RentPayment>('rent_payments')
+  const { data: bookings = [] } = useTable<Booking>('bookings')
   const now = new Date()
   const today = localDate(now)
   const years = useMemo(() => {
@@ -46,7 +48,8 @@ export function Finance() {
   }, [deals, expenses, invoices])
   const [year, setYear] = useState(now.getFullYear())
 
-  const fees = useMemo(() => managementFees(leases, rents), [leases, rents])
+  // the agency's cut on managed rents and on summer stays (earned once the guests have arrived)
+  const fees = useMemo(() => [...managementFees(leases, rents), ...seasonalFees(bookings.filter((x) => x.check_in <= today))], [leases, rents, bookings, today])
   const acc = useMemo(() => yearAccounts(deals, expenses, year, b.vat_rate, fees), [deals, expenses, year, b.vat_rate, fees])
   const owed = useMemo(() => receivables(deals, payments), [deals, payments])
   const owedTotal = owed.reduce((s, x) => s + x.rest, 0)
@@ -135,7 +138,7 @@ export function Finance() {
             </div>
             <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
               <span className="inline-flex items-center gap-1.5">
-                <span className="size-2.5 rounded-sm bg-navy" /> دخل الوكالة (العمولات والتسيير، دون الضريبة وحصص الشركاء)
+                <span className="size-2.5 rounded-sm bg-navy" /> دخل الوكالة (العمولات، التسيير والكراء الموسمي، دون الضريبة وحصص الشركاء)
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="size-2.5 rounded-sm" style={{ background: '#e5a3a3' }} /> المصاريف
@@ -153,7 +156,7 @@ export function Finance() {
                   <tr>
                     <th>الشهر</th>
                     <th>العمولات</th>
-                    {acc.total.management > 0 && <th>التسيير</th>}
+                    {acc.total.management > 0 && <th>الكراء والتسيير</th>}
                     {b.vat_rate > 0 && <th>الضريبة</th>}
                     <th>الشركاء</th>
                     <th>المصاريف</th>

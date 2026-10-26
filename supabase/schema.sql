@@ -229,7 +229,7 @@ create table if not exists public.re_leads (
   email text check (email is null or char_length(email) <= 160),
   message text check (message is null or char_length(message) <= 3000),
   notes text,
-  kind text not null default 'inquiry' check (kind in ('inquiry', 'visit', 'sell', 'valuation', 'callback', 'contact')),
+  kind text not null default 'inquiry' check (kind in ('inquiry', 'visit', 'sell', 'valuation', 'callback', 'contact', 'booking')),
   property_id uuid references public.re_properties (id) on delete set null,
   property_ref text check (property_ref is null or char_length(property_ref) <= 30),
   source text not null default 'website',
@@ -591,7 +591,7 @@ create trigger re_number_payment before insert on public.re_payments for each ro
 create or replace function public.re_lock_doc() returns trigger
 language plpgsql as $$
 declare
-  free text[] := array['status', 'paid', 'notes', 'due_at', 'deal_id', 'client_id', 'invoice_id', 'remitted_at', 'updated_at'];
+  free text[] := array['status', 'paid', 'notes', 'due_at', 'deal_id', 'client_id', 'invoice_id', 'booking_id', 'remitted_at', 'updated_at'];
 begin
   if (to_jsonb(old) - free) is distinct from (to_jsonb(new) - free) then
     raise exception 'document_locked: cancel it and issue a new one' using errcode = 'check_violation';
@@ -674,6 +674,95 @@ drop trigger if exists re_lock_rent on public.re_rent_payments;
 create trigger re_lock_rent before update on public.re_rent_payments for each row execute function public.re_lock_doc();
 
 -- ---------------------------------------------------------------------
+-- Seasonal rentals (summer…): nightly rates on a property, stays that never overlap,
+-- guests' details for their form and the online declaration of stays (law 80-14, art. 36-38)
+-- ---------------------------------------------------------------------
+alter table public.re_properties add column if not exists seasonal boolean not null default false;
+alter table public.re_properties add column if not exists season jsonb not null default '{}'::jsonb;
+
+-- website booking requests arrive as requests of their own kind
+alter table public.re_leads drop constraint if exists re_leads_kind_check;
+alter table public.re_leads add constraint re_leads_kind_check check (kind in ('inquiry', 'visit', 'sell', 'valuation', 'callback', 'contact', 'booking'));
+
+create table if not exists public.re_bookings (
+  id uuid primary key default gen_random_uuid(),
+  property_id uuid not null references public.re_properties (id) on delete restrict,
+  client_id uuid references public.re_clients (id) on delete set null,
+  lead_id uuid references public.re_leads (id) on delete set null,
+  -- a request does not hold the dates; blocked = the owner's own use
+  status text not null default 'request' check (status in ('request', 'confirmed', 'checked_in', 'completed', 'cancelled', 'blocked')),
+  source text not null default 'phone' check (source in ('website', 'phone', 'whatsapp', 'walkin', 'airbnb', 'booking', 'owner', 'other')),
+  check_in date not null,
+  -- departure day (not a night)
+  check_out date not null,
+  guests int not null default 1 check (guests between 1 and 50),
+  guest_name text not null default '',
+  guest_phone text,
+  guest_lang text not null default 'ar' check (guest_lang in ('ar', 'fr', 'es')),
+  guest_id_type text check (guest_id_type in ('cin', 'passport', 'residence', 'other')),
+  guest_id_no text,
+  guest_nationality text,
+  guest_birth date,
+  guest_address text,
+  declared_at timestamptz,
+  rent numeric not null default 0 check (rent >= 0),
+  cleaning numeric not null default 0 check (cleaning >= 0),
+  deposit numeric not null default 0 check (deposit >= 0),
+  caution numeric not null default 0 check (caution >= 0),
+  caution_status text not null default 'none' check (caution_status in ('none', 'held', 'returned', 'kept')),
+  paid numeric not null default 0,
+  commission_rate numeric not null default 0 check (commission_rate >= 0 and commission_rate <= 100),
+  owner_paid_at date,
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint re_bookings_dates_check check (check_out > check_in)
+);
+create index if not exists re_bookings_property_idx on public.re_bookings (property_id, check_in);
+
+-- two stays never share a night on the same property (checked one at a time per property)
+create or replace function public.re_booking_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.status in ('confirmed', 'checked_in', 'completed', 'blocked') then
+    perform pg_advisory_xact_lock(hashtext('re_bookings:' || new.property_id::text));
+    if exists (
+      select 1 from public.re_bookings b
+      where b.property_id = new.property_id
+        and b.id <> new.id
+        and b.status in ('confirmed', 'checked_in', 'completed', 'blocked')
+        and daterange(b.check_in, b.check_out) && daterange(new.check_in, new.check_out)
+    ) then
+      raise exception 'booking_overlap: these nights are already taken' using errcode = 'exclusion_violation';
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists re_booking_guard on public.re_bookings;
+create trigger re_booking_guard before insert or update on public.re_bookings for each row execute function public.re_booking_guard();
+
+-- receipts for the money of a stay
+alter table public.re_payments add column if not exists booking_id uuid references public.re_bookings (id) on delete set null;
+
+-- the website shows when seasonal properties are taken: dates only, never who
+create or replace function public.re_seasonal_busy()
+returns table (property_id uuid, check_in date, check_out date)
+language sql stable security definer set search_path = public as $$
+  select b.property_id, b.check_in, b.check_out
+  from public.re_bookings b
+  join public.re_properties p on p.id = b.property_id
+  where p.published and p.seasonal and p.status <> 'draft'
+    and b.status in ('confirmed', 'checked_in', 'completed', 'blocked')
+    and b.check_out >= current_date
+    and b.check_in <= current_date + 400
+  order by b.property_id, b.check_in
+$$;
+revoke execute on function public.re_seasonal_busy() from public;
+grant execute on function public.re_seasonal_busy() to anon, authenticated;
+
+-- ---------------------------------------------------------------------
 -- Trash: every deleted record is kept 30 days and can be restored
 -- ---------------------------------------------------------------------
 create table if not exists public.re_trash (
@@ -701,7 +790,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['re_properties', 're_clients', 're_leads', 're_appointments', 're_tasks', 're_calls', 're_deals', 're_brokers', 're_mandates', 're_documents', 're_offers', 're_expenses', 're_leases'] loop
+  foreach t in array array['re_properties', 're_clients', 're_leads', 're_appointments', 're_tasks', 're_calls', 're_deals', 're_brokers', 're_mandates', 're_documents', 're_offers', 're_expenses', 're_leases', 're_bookings'] loop
     execute format('drop trigger if exists re_trash_%1$s on public.%1$s', t);
     execute format('create trigger re_trash_%1$s before delete on public.%1$s for each row execute function public.re_to_trash()', t);
   end loop;
@@ -739,6 +828,8 @@ drop trigger if exists re_touch_expenses on public.re_expenses;
 create trigger re_touch_expenses before update on public.re_expenses for each row execute function public.re_touch();
 drop trigger if exists re_touch_leases on public.re_leases;
 create trigger re_touch_leases before update on public.re_leases for each row execute function public.re_touch();
+drop trigger if exists re_touch_bookings on public.re_bookings;
+create trigger re_touch_bookings before update on public.re_bookings for each row execute function public.re_touch();
 
 -- ---------------------------------------------------------------------
 -- Anti-spam: at most 3 website requests per phone number every 10 minutes
@@ -761,6 +852,8 @@ create trigger re_leads_rate_limit before insert on public.re_leads for each row
 -- Public website: published properties WITHOUT private columns, and a view counter
 -- ---------------------------------------------------------------------
 drop view if exists public.re_public_properties;
+-- its columns changed (seasonal rates): the function is replaced as a whole
+drop function if exists public.re_public_properties(text);
 
 create or replace function public.re_public_properties(p_ref text default null)
 returns table (
@@ -768,14 +861,14 @@ returns table (
   type text, purpose text, price numeric, area numeric, land_area numeric, rooms int, bedrooms int, bathrooms int,
   floor int, floors int, year_built int, furnished boolean, features text[], neighborhood text, city text, address text,
   lat double precision, lng double precision, images text[], video_url text, status text, featured boolean,
-  published boolean, views int, created_at timestamptz, updated_at timestamptz
+  published boolean, views int, created_at timestamptz, updated_at timestamptz, seasonal boolean, season jsonb
 )
 language sql stable security definer set search_path = public as $$
   select p.id, p.ref, p.title, p.title_fr, p.title_es, p.description, p.description_fr, p.description_es,
          p.type, p.purpose, p.price, p.area, p.land_area, p.rooms, p.bedrooms, p.bathrooms,
          p.floor, p.floors, p.year_built, p.furnished, p.features, p.neighborhood, p.city, p.address,
          p.lat, p.lng, p.images, p.video_url, p.status, p.featured,
-         p.published, p.views, p.created_at, p.updated_at
+         p.published, p.views, p.created_at, p.updated_at, p.seasonal, p.season
   from public.re_properties p
   where p.published and p.status <> 'draft'
     and (p_ref is null or p.ref = p_ref or p.id::text = p_ref)
@@ -870,6 +963,17 @@ alter table public.re_payments enable row level security;
 alter table public.re_expenses enable row level security;
 alter table public.re_leases enable row level security;
 alter table public.re_rent_payments enable row level security;
+alter table public.re_bookings enable row level security;
+
+-- seasonal stays: the whole team takes bookings; deleting one needs «delete» (it goes to the trash)
+drop policy if exists re_bookings_select on public.re_bookings;
+create policy re_bookings_select on public.re_bookings for select to authenticated using ((select public.re_is_staff()));
+drop policy if exists re_bookings_insert on public.re_bookings;
+create policy re_bookings_insert on public.re_bookings for insert to authenticated with check ((select public.re_is_staff()));
+drop policy if exists re_bookings_update on public.re_bookings;
+create policy re_bookings_update on public.re_bookings for update to authenticated using ((select public.re_is_staff())) with check ((select public.re_is_staff()));
+drop policy if exists re_bookings_delete on public.re_bookings;
+create policy re_bookings_delete on public.re_bookings for delete to authenticated using ((select public.re_can('delete')));
 
 -- rentals: the whole team follows leases and records rents; deleting a lease needs «delete»;
 -- a rent receipt is never deleted (it is cancelled)
@@ -905,6 +1009,13 @@ end $$;
 -- expenses: deleting also needs «delete» (they go to the trash)
 drop policy if exists re_expenses_delete on public.re_expenses;
 create policy re_expenses_delete on public.re_expenses for delete to authenticated using ((select public.re_can('deals')) and (select public.re_can('delete')));
+-- receipts of a stay: the whole team, like the stays; other receipts keep needing «deals»
+drop policy if exists re_payments_select on public.re_payments;
+create policy re_payments_select on public.re_payments for select to authenticated using ((select public.re_can('deals')) or (booking_id is not null and (select public.re_is_staff())));
+drop policy if exists re_payments_insert on public.re_payments;
+create policy re_payments_insert on public.re_payments for insert to authenticated with check ((select public.re_can('deals')) or (booking_id is not null and (select public.re_is_staff())));
+drop policy if exists re_payments_update on public.re_payments;
+create policy re_payments_update on public.re_payments for update to authenticated using ((select public.re_can('deals')) or (booking_id is not null and (select public.re_is_staff()))) with check ((select public.re_can('deals')) or (booking_id is not null and (select public.re_is_staff())));
 
 -- offers: every member reads, records and updates them; deleting needs «delete»
 drop policy if exists re_offers_select on public.re_offers;

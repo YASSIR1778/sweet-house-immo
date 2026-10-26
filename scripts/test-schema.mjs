@@ -412,6 +412,47 @@ await as(null, async () => {
 })
 await db.exec(`delete from re_rent_payments; delete from re_leases; delete from re_trash;`)
 
+// ------------------------------------------------------------ seasonal rentals
+await db.query(`update re_properties set seasonal = true, season = '{"night": 900, "high_night": 1500}' where id = $1`, [P1])
+await setPerms(['properties'])
+await as(SEC, async () => {
+  const b1 = await one(`insert into re_bookings (property_id, status, check_in, check_out, guests, guest_name, rent) values ($1, 'confirmed', '2027-08-01', '2027-08-08', 4, 'عائلة العلمي', 10500) returning id, status`, [P1])
+  ok('member records a confirmed stay', b1?.status === 'confirmed')
+  await fails('a confirmed stay on taken nights is refused', () => db.query(`insert into re_bookings (property_id, status, check_in, check_out, guest_name) values ($1, 'confirmed', '2027-08-07', '2027-08-10', 'آخر')`, [P1]), /booking_overlap/)
+  const b2 = await one(`insert into re_bookings (property_id, status, check_in, check_out, guest_name) values ($1, 'confirmed', '2027-08-08', '2027-08-12', 'يصل يوم المغادرة') returning id`, [P1])
+  ok('a stay may start the day the previous one leaves', Boolean(b2?.id))
+  const rq = await one(`insert into re_bookings (property_id, status, check_in, check_out, guest_name) values ($1, 'request', '2027-08-03', '2027-08-05', 'طلب') returning id`, [P1])
+  ok('a request does not hold the dates', Boolean(rq?.id))
+  await fails('confirming it on taken nights is refused', () => db.query(`update re_bookings set status = 'confirmed' where id = $1`, [rq.id]), /booking_overlap/)
+  await fails('owner use on taken nights is refused too', () => db.query(`insert into re_bookings (property_id, status, check_in, check_out) values ($1, 'blocked', '2027-08-11', '2027-08-13')`, [P1]), /booking_overlap/)
+  await db.query(`update re_bookings set status = 'cancelled' where id = $1`, [b2.id])
+  const bl = await db.query(`insert into re_bookings (property_id, status, check_in, check_out) values ($1, 'blocked', '2027-08-11', '2027-08-13')`, [P1])
+  ok('a cancelled stay frees its nights', bl.affectedRows === 1)
+  await fails('departure must be after arrival', () => db.query(`insert into re_bookings (property_id, check_in, check_out) values ($1, '2027-09-05', '2027-09-05')`, [P1]), /check constraint/)
+  const pay = await one(`insert into re_payments (no, booking_id, party, payer_name, amount, received_at) values ('', $1, 'buyer', 'عائلة العلمي', 3150, '2026-10-20') returning no, booking_id`, [b1.id])
+  ok('member without «deals» issues the receipt of a stay', Boolean(pay?.no) && pay?.booking_id === b1.id)
+  await fails('…but not other receipts', () => db.query(`insert into re_payments (no, party, payer_name, amount) values ('', 'buyer', 'x', 100)`), /row-level security/)
+  ok('…and sees only the receipts of stays', (await count(`select count(*) n from re_payments where booking_id is null`)) === 0)
+  const d = await db.query(`delete from re_bookings where id = $1`, [rq.id])
+  ok('member without «delete» cannot delete a stay', d.affectedRows === 0)
+  await db.query(`insert into re_leads (name, phone, kind, status, source) values ('زائر', '0600000123', 'booking', 'new', 'phone')`)
+  ok('booking requests are a kind of request', (await count(`select count(*) n from re_leads where kind = 'booking'`)) === 1)
+})
+await as(null, async () => {
+  ok('anon: stays hidden', (await count(`select count(*) n from re_bookings`)) === 0)
+  const busy = (await db.query(`select * from re_seasonal_busy()`)).rows
+  ok('anon sees only the taken dates, never who', busy.length === 2 && busy.every((r) => Object.keys(r).sort().join() === 'check_in,check_out,property_id'), JSON.stringify(busy))
+  const pub = (await db.query(`select seasonal, season from re_public_properties() where id = $1`, [P1])).rows[0]
+  ok('public listing carries the seasonal rates', pub?.seasonal === true && pub?.season?.night === 900)
+  await fails('anon cannot book directly', () => db.query(`insert into re_bookings (property_id, check_in, check_out) values ($1, '2027-09-01', '2027-09-03')`, [P1]), /row-level security|permission denied/)
+})
+await db.query(`update re_properties set published = false where id = $1`, [P1])
+await as(null, async () => {
+  ok('an unpublished property shows no dates', (await db.query(`select * from re_seasonal_busy()`)).rows.length === 0)
+})
+await db.query(`update re_properties set published = true, seasonal = false, season = '{}' where id = $1`, [P1])
+await db.exec(`delete from re_payments; delete from re_bookings; delete from re_leads where kind = 'booking'; delete from re_trash;`)
+
 // ------------------------------------------------------------ website visitor (anon)
 const before = await one(`select updated_at from re_properties where id = $1`, [P1])
 await as(null, async () => {

@@ -32,6 +32,7 @@ import {
   Landmark,
   Wallet,
   Key,
+  Sun,
   type LucideIcon,
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -44,7 +45,7 @@ import { localDate, phoneKey, sameDay } from '@/shared/lib/format'
 import { I18nProvider } from '@/shared/lib/i18n'
 import { mandateState } from '@/shared/lib/owners'
 import { leaseArrears } from '@/shared/lib/rentals'
-import type { Appointment, Broker, Client, Invoice, Lead, Lease, Mandate, Offer, Permission, Property, RentPayment, Task } from '@/shared/lib/types'
+import type { Appointment, Booking, Broker, Client, Invoice, Lead, Lease, Mandate, Offer, Permission, Property, RentPayment, Task } from '@/shared/lib/types'
 import { Badge, FullSpinner, cn } from '@/shared/ui/base'
 import { Logo } from '@/shared/ui/logo'
 import { Login, Pending, ResetPassword } from './auth-screens'
@@ -64,6 +65,7 @@ const DealFile = lazy(() => import('./pages/DealFile').then((m) => ({ default: m
 const Finance = lazy(() => import('./pages/Finance').then((m) => ({ default: m.Finance })))
 const Rentals = lazy(() => import('./pages/Rentals').then((m) => ({ default: m.Rentals })))
 const LeaseFile = lazy(() => import('./pages/LeaseFile').then((m) => ({ default: m.LeaseFile })))
+const Seasonal = lazy(() => import('./pages/Seasonal').then((m) => ({ default: m.Seasonal })))
 const Calculators = lazy(() => import('./pages/Calculators').then((m) => ({ default: m.Calculators })))
 const Calls = lazy(() => import('./pages/Calls').then((m) => ({ default: m.Calls })))
 const Clients = lazy(() => import('./pages/Clients').then((m) => ({ default: m.Clients })))
@@ -194,6 +196,8 @@ function Shell() {
   const { data: leases = [] } = useTable<Lease>('leases')
   const { data: rents = [] } = useTable<RentPayment>('rent_payments')
   const lateRents = leases.filter((l) => l.managed && l.status === 'active' && leaseArrears(l, rents).months > 0).length
+  const { data: bookings = [] } = useTable<Booking>('bookings')
+  const stayRequests = bookings.filter((b) => b.status === 'request').length + leads.filter((l) => l.kind === 'booking' && l.status === 'new').length
 
   const newLeads = leads.filter((l) => l.status === 'new').length
   const mandatesDue = mandates.filter((m) => {
@@ -245,6 +249,7 @@ function Shell() {
         { to: '/admin/clients', label: 'العملاء', icon: Users },
         { to: '/admin/owners', label: 'ملفات الملاك', icon: FolderLock, badge: mandatesDue, tone: 'gold' },
         { to: '/admin/rentals', label: 'الكراء والتسيير', icon: Key, badge: lateRents, tone: 'danger' },
+        { to: '/admin/seasonal', label: 'الكراء الموسمي', icon: Sun, badge: stayRequests, tone: 'gold' },
         { to: '/admin/brokers', label: 'الوسطاء والشركاء', icon: Handshake },
         { to: '/admin/calculators', label: 'الحاسبات والتقدير', icon: Calculator },
       ],
@@ -275,6 +280,7 @@ function Shell() {
     { label: 'صفقة جديدة', icon: <BadgeDollarSign className="size-4" />, onClick: () => quick('deal', { stage: 'agreement' }), hidden: !can('deals') },
     { label: 'مصروف', icon: <Wallet className="size-4" />, onClick: () => quick('expense'), hidden: !can('deals') },
     { label: 'عقد كراء', icon: <Key className="size-4" />, onClick: () => quick('lease', {}, (row) => nav(`/admin/rentals/${(row as Lease).id}`)) },
+    { label: 'حجز موسمي', icon: <Sun className="size-4" />, onClick: () => quick('booking') },
   ]
 
   const sidebar = (
@@ -374,6 +380,7 @@ function Shell() {
             <Route path="finance" element={<Allowed perm="deals"><Finance /></Allowed>} />
             <Route path="rentals" element={<Rentals />} />
             <Route path="rentals/:id" element={<LeaseFile />} />
+            <Route path="seasonal" element={<Seasonal />} />
             <Route path="team" element={<Allowed><Team /></Allowed>} />
             <Route path="activity" element={<Allowed perm="activity"><Activity /></Allowed>} />
             <Route path="settings" element={<Allowed perm="settings"><Settings /></Allowed>} />
@@ -421,11 +428,13 @@ function AdminNotFound() {
 /* ------------------------------------------------------------------ */
 function CommandPalette({ onClose }: { onClose: () => void }) {
   const nav = useNavigate()
+  const quick = useQuickAdd()
   const { hoodName } = useNames()
   const { data: props = [] } = useTable<Property>('properties')
   const { data: clients = [] } = useTable<Client>('clients')
   const { data: leads = [] } = useTable<Lead>('leads')
   const { data: brokers = [] } = useTable<Broker>('brokers')
+  const { data: stays = [] } = useTable<Booking>('bookings')
   const [q, setQ] = useState('')
   const [active, setActive] = useState(0)
 
@@ -460,8 +469,17 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
         if (++n >= 4) break
       }
     }
+    n = 0
+    for (const b of stays) {
+      if (b.status === 'blocked') continue
+      if (b.guest_name.toLowerCase().includes(s) || (digits.length >= 4 && b.guest_phone && phoneKey(b.guest_phone).includes(digits))) {
+        const ref = props.find((p) => p.id === b.property_id)?.ref ?? ''
+        out.push({ key: 's' + b.id, group: 'الحجوزات الموسمية', label: b.guest_name, sub: `${ref} · ${b.check_in} → ${b.check_out}`, go: () => quick('booking', b) })
+        if (++n >= 4) break
+      }
+    }
     return out
-  }, [q, props, clients, leads, brokers, hoodName, nav])
+  }, [q, props, clients, leads, brokers, stays, hoodName, nav, quick])
 
   useEffect(() => setActive(0), [q])
   useEffect(() => {

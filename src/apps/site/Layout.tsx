@@ -42,10 +42,11 @@ function Header() {
   useEffect(() => setOpen(false), [loc.pathname, loc.search])
 
   const links = [
-    { to: '/', label: t('nav.home') },
+    { to: '/', label: t('nav.home'), phone: true },
     { to: '/biens?purpose=sale', label: t('nav.sale') },
     { to: '/biens?purpose=rent', label: t('nav.rent') },
-    { to: '/vendre', label: t('nav.sell') },
+    { to: '/sejours', label: t('nav.stays') },
+    { to: '/vendre', label: t('nav.sell'), short: t('nav.sellShort') },
     { to: '/mre', label: t('nav.mre') },
     { to: '/agence', label: t('nav.agency') },
     { to: '/contact', label: t('nav.contact') },
@@ -59,22 +60,22 @@ function Header() {
 
   return (
     <header className={cn('no-print fixed inset-x-0 top-0 z-50 transition-all duration-300', transparent ? 'bg-transparent py-3' : 'glass py-1.5 shadow-soft')}>
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 md:px-6">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-4 md:px-6 2xl:gap-4">
         <Link to="/" className="shrink-0" aria-label={name}>
           <Logo name={name} sub={lang === 'ar' ? 'Sweet House Immobilier' : 'Tétouan · Martil · M’diq'} light={transparent} size="md" />
         </Link>
-        <nav className="hidden items-center gap-0.5 xl:flex">
-          {links.map((l) => (
+        <nav className="hidden items-center xl:flex 2xl:gap-0.5">
+          {links.filter((l) => !l.phone).map((l) => (
             <Link
               key={l.to}
               to={l.to}
               className={cn(
-                'rounded-full px-3.5 py-2 text-sm font-semibold whitespace-nowrap transition',
+                'rounded-full px-2 py-2 text-[13px] font-semibold whitespace-nowrap transition 2xl:px-3 2xl:text-sm',
                 transparent ? 'text-white/85 hover:bg-white/10 hover:text-white' : 'text-navy/80 hover:bg-navy/5 hover:text-navy',
                 active(l.to) && (transparent ? 'bg-white/15 text-white' : 'bg-navy/5 text-navy'),
               )}
             >
-              {l.label}
+              {l.short ?? l.label}
             </Link>
           ))}
         </nav>
@@ -86,14 +87,14 @@ function Header() {
             <Heart className={cn('size-5', ids.length && 'fill-danger text-danger')} />
             {ids.length > 0 && <span className="num absolute -top-0.5 -end-0.5 flex size-5 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-navy-950">{ids.length}</span>}
           </Link>
-          <a href={telLink(s.agency.phone)} className={cn('hidden items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition 2xl:inline-flex', transparent ? 'bg-white/15 text-white hover:bg-white/25' : 'bg-navy/5 text-navy hover:bg-navy/10')}>
+          <a href={telLink(s.agency.phone)} className={cn('hidden items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition', lang === 'ar' && '2xl:inline-flex', transparent ? 'bg-white/15 text-white hover:bg-white/25' : 'bg-navy/5 text-navy hover:bg-navy/10')}>
             <Phone className="size-4" />
             <span className="num" dir="ltr">
               {fmtPhone(s.agency.phone)}
             </span>
           </a>
           <a href={waLink(s.agency.whatsapp)} target="_blank" rel="noopener noreferrer" className="hidden items-center gap-2 rounded-full bg-gold px-4 py-2 text-sm font-bold text-navy-950 shadow-gold transition hover:bg-gold-400 md:inline-flex">
-            <WhatsAppIcon className="size-4" /> {t('nav.whatsapp')}
+            <WhatsAppIcon className="size-4" /> <span className={cn('xl:hidden', lang === 'ar' && '2xl:inline')}>{t('nav.whatsapp')}</span>
           </a>
           <button onClick={() => setOpen(!open)} className={cn('inline-flex size-10 items-center justify-center rounded-full xl:hidden', transparent ? 'text-white' : 'text-navy')} aria-label={t('nav.menu')} aria-expanded={open}>
             {open ? <X className="size-6" /> : <Menu className="size-6" />}
@@ -164,6 +165,11 @@ function Footer() {
               <li>
                 <Link to="/biens?purpose=rent" className="hover:text-gold-300">
                   {t('nav.rent')}
+                </Link>
+              </li>
+              <li>
+                <Link to="/sejours" className="hover:text-gold-300">
+                  {t('nav.stays')}
                 </Link>
               </li>
               <li>

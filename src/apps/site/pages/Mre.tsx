@@ -1,4 +1,4 @@
-import { Banknote, Calculator, FileCheck2, KeyRound, Landmark, PenLine, ShieldCheck, Video } from 'lucide-react'
+import { Banknote, Calculator, FileCheck2, KeyRound, Landmark, PenLine, ShieldCheck, Sun, Video } from 'lucide-react'
 import { Link } from 'react-router'
 import { usePublicProperties } from '@/shared/lib/data'
 import { waLink } from '@/shared/lib/format'
@@ -29,6 +29,9 @@ export function Mre() {
           </a>
           <Link to="/frais" className="inline-flex h-12 items-center gap-2 rounded-2xl border border-line bg-white px-5 font-bold text-navy shadow-soft hover:border-navy/30">
             <Calculator className="size-5 text-gold-600" /> {t('mre.costs')}
+          </Link>
+          <Link to="/sejours" className="inline-flex h-12 items-center gap-2 rounded-2xl border border-line bg-white px-5 font-bold text-navy shadow-soft hover:border-navy/30">
+            <Sun className="size-5 text-gold-600" /> {t('mre.summer')}
           </Link>
         </div>
 

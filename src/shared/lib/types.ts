@@ -54,6 +54,9 @@ export interface Property {
   private_notes: string | null
   /** partner broker who brought this property (never public) */
   broker_id?: string | null
+  /** also rented by the night (summer…), with its own rates */
+  seasonal?: boolean
+  season?: Partial<SeasonRates>
   created_by: string | null
   created_at: string
   updated_at: string
@@ -88,7 +91,7 @@ export interface Client {
   updated_at: string
 }
 
-export type LeadKind = 'inquiry' | 'visit' | 'sell' | 'valuation' | 'callback' | 'contact'
+export type LeadKind = 'inquiry' | 'visit' | 'sell' | 'valuation' | 'callback' | 'contact' | 'booking'
 export type LeadSource = 'website' | 'phone' | 'walkin' | 'whatsapp' | 'facebook' | 'instagram' | 'referral' | 'other'
 export type LeadStatus = 'new' | 'contacted' | 'visit' | 'negotiation' | 'won' | 'lost'
 export interface Lead {
@@ -287,6 +290,8 @@ export interface Payment {
   no: string
   deal_id: string | null
   invoice_id: string | null
+  /** a seasonal stay this money is for */
+  booking_id?: string | null
   client_id: string | null
   party: BillParty
   payer_name: string
@@ -346,6 +351,77 @@ export interface BillingSettings {
   payment_days: number
   /** extra line at the bottom of invoices */
   footer: string
+}
+
+/* ---------------------------------------------------------------- seasonal rentals */
+/** Rates of a property rented by the night. */
+export interface SeasonRates {
+  /** price of a night out of the high season */
+  night: number
+  /** price of a night in the high season (empty: same price all year) */
+  high_night: number | null
+  /** high season, mm-dd to mm-dd (may wrap the new year) */
+  high_from: string
+  high_to: string
+  /** % off for 7 nights or more */
+  week_discount: number
+  min_nights: number
+  /** minimum stay when the high season is involved */
+  high_min_nights: number | null
+  /** most guests allowed */
+  guests: number
+  cleaning: number
+  /** % of the total paid to confirm */
+  deposit_pct: number
+  /** security deposit, given back after the stay */
+  caution: number
+  check_in: string
+  check_out: string
+  /** agency's % of the nights */
+  commission: number
+  /** authorisation number (law 80-14) */
+  license: string
+}
+export type BookingStatus = 'request' | 'confirmed' | 'checked_in' | 'completed' | 'cancelled' | 'blocked'
+export type BookingSource = 'website' | 'phone' | 'whatsapp' | 'walkin' | 'airbnb' | 'booking' | 'owner' | 'other'
+export type GuestIdType = 'cin' | 'passport' | 'residence' | 'other'
+export type CautionStatus = 'none' | 'held' | 'returned' | 'kept'
+/** A stay: dates are yyyy-mm-dd, check_out is the day of departure (not a night). */
+export interface Booking {
+  id: string
+  property_id: string
+  client_id: string | null
+  lead_id: string | null
+  status: BookingStatus
+  source: BookingSource
+  check_in: string
+  check_out: string
+  guests: number
+  guest_name: string
+  guest_phone: string | null
+  guest_lang: Lang
+  /** for the guest's form and the online declaration of stays (law 80-14, art. 36-38) */
+  guest_id_type: GuestIdType | null
+  guest_id_no: string | null
+  guest_nationality: string | null
+  guest_birth: string | null
+  guest_address: string | null
+  declared_at: string | null
+  /** the nights, after discount */
+  rent: number
+  cleaning: number
+  /** earnest money asked to confirm */
+  deposit: number
+  caution: number
+  caution_status: CautionStatus
+  /** received so far (receipts) */
+  paid: number
+  commission_rate: number
+  owner_paid_at: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
 }
 
 /* ---------------------------------------------------------------- rentals */

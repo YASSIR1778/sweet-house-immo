@@ -1,6 +1,6 @@
-import { BellRing, LayoutGrid, Map as MapIcon, SlidersHorizontal, X } from 'lucide-react'
+import { BellRing, LayoutGrid, Map as MapIcon, SlidersHorizontal, Sun, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { PROPERTY_TYPES } from '@/shared/lib/config'
 import { usePublicProperties } from '@/shared/lib/data'
 import { fmtPriceShort, pick } from '@/shared/lib/format'
@@ -231,6 +231,15 @@ export function Listings() {
           </aside>
 
           <div>
+            {f.purpose !== 'sale' && (data ?? []).some((p) => p.seasonal && p.purpose === 'rent') && (
+              <Link to="/sejours" className="mb-6 flex items-center gap-3 rounded-[18px] border border-gold/40 bg-gold/5 px-4 py-3 text-sm text-navy transition hover:bg-gold/10">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gold/20 text-gold-700">
+                  <Sun className="size-5" />
+                </span>
+                <span className="flex-1">{t('list.summer')}</span>
+                <span className="font-bold whitespace-nowrap text-gold-700">{t('nav.stays')}</span>
+              </Link>
+            )}
             {isLoading ? (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
                 {Array.from({ length: 6 }).map((_, i) => (

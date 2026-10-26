@@ -16,6 +16,7 @@ export function errorText(e: unknown): string {
   if (/quota/i.test(msg)) return 'مساحة التخزين في الوضع التجريبي ممتلئة. احذف بعض الصور أو استعمل روابط صور.'
   if (/row-level security|permission denied|not allowed/i.test(msg)) return 'ليست لديك صلاحية لهذا الإجراء.'
   if (/duplicate key|unique/i.test(msg)) return 'هذا السجل موجود مسبقاً (مرجع مكرر).'
+  if (/booking_overlap/i.test(msg)) return 'هذه الليالي محجوزة مسبقاً في هذا العقار. اختر تواريخ أخرى.'
   if (/Failed to fetch|NetworkError|network/i.test(msg)) return 'تعذر الاتصال بالخادم. تحقق من الإنترنت ثم أعد المحاولة.'
   if (/JWT|session/i.test(msg)) return 'انتهت الجلسة. سجّل الدخول من جديد.'
   return `حدث خطأ: ${msg}`

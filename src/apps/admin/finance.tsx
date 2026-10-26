@@ -7,7 +7,7 @@ import { useBilling, useTable } from '@/shared/lib/data'
 import { addDays, fmtDate, fmtMoney2, fmtNumber, localDate, nowIso, uid } from '@/shared/lib/format'
 import { translate } from '@/shared/lib/i18n'
 import { repo } from '@/shared/lib/repo'
-import type { BillingSettings, BillParty, Deal, Expense, ExpenseCategory, Invoice, InvoiceLine, Payment, PayMethod, Property } from '@/shared/lib/types'
+import type { BillingSettings, BillParty, Booking, Deal, Expense, ExpenseCategory, Invoice, InvoiceLine, Payment, PayMethod, Property } from '@/shared/lib/types'
 import { Button, Field, Input, Modal, Segmented, Select, Textarea, cn, useConfirm } from '@/shared/ui/base'
 import { usePropertyOptions, useQuickAdd } from './dialogs'
 import { useCan, useDeleteRow, useLookups, useMe, useNames, useSave } from './hooks'
@@ -26,9 +26,12 @@ export function invoiceLabel(d: Pick<Deal, 'kind' | 'amount'>, party: BillParty,
   return `Honoraires d'intermédiation — ${party === 'seller' ? 'vente' : 'achat'} ${bien}, prix ${frNum(d.amount)} DH`
 }
 
+const frDate = (d: string) => d.slice(0, 10).split('-').reverse().join('/')
+
 /** What a receipt was paid for, printed on it. */
-export function paymentAbout(p: Payment, inv: Invoice | undefined, deal: Deal | undefined, prop: Property | undefined): string {
+export function paymentAbout(p: Payment, inv: Invoice | undefined, deal: Deal | undefined, prop: Property | undefined, booking?: Booking): string {
   if (inv) return `Facture ${inv.no}${inv.lines[0] ? ` — ${inv.lines[0].label}` : ''}`
+  if (booking) return `Location saisonnière${prop ? ` — bien ${prop.ref}` : ''}, séjour du ${frDate(booking.check_in)} au ${frDate(booking.check_out)}`
   if (deal) return `Honoraires — ${deal.kind === 'rent' ? 'location' : 'vente'} ${prop ? `du bien ${prop.ref}` : ''}`.trim()
   return p.notes || 'Honoraires'
 }
@@ -54,15 +57,21 @@ export function useDealOptions(): ComboOption[] {
 }
 
 /**
- * After a receipt is recorded or cancelled: the invoice it pays and the deal it belongs to
- * follow (amount paid, «paid» status, commission collected).
+ * After a receipt is recorded or cancelled: the invoice it pays, the deal or the summer stay it
+ * belongs to follow (amount paid, «paid» status, commission collected).
  */
 export function useMoneySync() {
   const inv = useSave<Invoice>('invoices', 'invoice', (i) => i.no)
   const deal = useSave<Deal>('deals', 'deal', (d) => `صفقة ${fmtNumber(d.amount)} د.م.`)
+  const stay = useSave<Booking>('bookings', 'booking', (b) => `${b.guest_name} ${b.check_in}`)
   return async (changed: Payment) => {
     // read the rows again: the screen may not have caught up with a document issued a second ago
-    const [payments, invoices, deals] = await Promise.all([repo.list<Payment>('payments'), repo.list<Invoice>('invoices'), repo.list<Deal>('deals')])
+    const [payments, invoices, deals, bookings] = await Promise.all([
+      repo.list<Payment>('payments'),
+      repo.list<Invoice>('invoices'),
+      repo.list<Deal>('deals'),
+      changed.booking_id ? repo.list<Booking>('bookings') : Promise.resolve([] as Booking[]),
+    ])
     const all = [...payments.filter((p) => p.id !== changed.id), changed]
     const i = invoices.find((x) => x.id === changed.invoice_id)
     if (i && i.status !== 'cancelled') {
@@ -74,6 +83,14 @@ export function useMoneySync() {
     if (d) {
       const received = r2(all.filter((p) => p.deal_id === d.id && p.status === 'valid').reduce((s, p) => s + p.amount, 0))
       if (received !== (d.received ?? d.commission)) await deal.save({ ...d, received }, { silent: true })
+    }
+    const b = bookings.find((x) => x.id === changed.booking_id)
+    if (b) {
+      const paid = r2(all.filter((p) => p.booking_id === b.id && p.status === 'valid').reduce((s, p) => s + p.amount, 0))
+      // the deposit received confirms a requested stay (and takes its nights)
+      const confirm = b.status === 'request' && paid > 0 && paid >= b.deposit
+      if (paid !== b.paid || confirm)
+        await stay.save({ ...b, paid, status: confirm ? 'confirmed' : b.status, updated_at: nowIso() }, confirm ? { action: 'status', meta: { status: 'confirmed' }, message: 'استُلم العربون فأُكّد الحجز' } : { silent: true })
     }
   }
 }
@@ -555,6 +572,7 @@ function PaymentForm({ initial, onClose, onSaved }: { initial: Partial<Payment>;
   const [f, setF] = useState(() => ({
     deal_id: initial.deal_id ?? null,
     invoice_id: initial.invoice_id ?? null,
+    booking_id: initial.booking_id ?? null,
     client_id: initial.client_id ?? null,
     party: (initial.party ?? 'buyer') as BillParty,
     payer_name: initial.payer_name ?? '',
@@ -566,7 +584,7 @@ function PaymentForm({ initial, onClose, onSaved }: { initial: Partial<Payment>;
   }))
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }))
   const deal = deals.find((d) => d.id === f.deal_id)
-  const open = invoices.filter((i) => i.kind === 'invoice' && i.status === 'issued' && (!f.deal_id || i.deal_id === f.deal_id))
+  const open = f.booking_id ? [] : invoices.filter((i) => i.kind === 'invoice' && i.status === 'issued' && (!f.deal_id || i.deal_id === f.deal_id))
   const inv = invoices.find((i) => i.id === f.invoice_id)
 
   const pickInvoice = (id: string) => {
@@ -585,6 +603,7 @@ function PaymentForm({ initial, onClose, onSaved }: { initial: Partial<Payment>;
       no: '',
       deal_id: f.deal_id,
       invoice_id: f.invoice_id,
+      booking_id: f.booking_id,
       client_id: f.client_id,
       party: f.party,
       payer_name: f.payer_name.trim(),
@@ -608,7 +627,7 @@ function PaymentForm({ initial, onClose, onSaved }: { initial: Partial<Payment>;
     <Modal
       open
       onClose={onClose}
-      title="تسجيل دفعة وإصدار وصل"
+      title={f.booking_id ? 'دفعة عن حجز موسمي' : 'تسجيل دفعة وإصدار وصل'}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -686,12 +705,15 @@ function PaymentView({ p, onClose }: { p: Payment; onClose: () => void }) {
   const { data: billing } = useBilling()
   const { data: invoices = [] } = useTable<Invoice>('invoices')
   const { data: deals = [] } = useTable<Deal>('deals')
+  const { data: bookings = [] } = useTable<Booking>('bookings')
   const { save, pending } = useSave<Payment>('payments', 'payment', (x) => x.no)
   const [cancelling, setCancelling] = useState(false)
   const [reason, setReason] = useState('')
   const inv = invoices.find((i) => i.id === p.invoice_id)
   const deal = deals.find((d) => d.id === p.deal_id)
-  const prop = L.property(deal?.property_id)
+  const booking = bookings.find((b) => b.id === p.booking_id)
+  const prop = L.property(deal?.property_id ?? booking?.property_id)
+  const about = paymentAbout(p, inv, deal, prop, booking)
 
   const cancel = async () => {
     if (!reason.trim()) return toast.error('اكتب سبب الإلغاء (مثلاً: شيك بدون رصيد)')
@@ -712,12 +734,12 @@ function PaymentView({ p, onClose }: { p: Payment; onClose: () => void }) {
       }
       footer={
         <>
-          {p.status === 'valid' && can('deals') && !cancelling && (
+          {p.status === 'valid' && (can('deals') || p.booking_id) && !cancelling && (
             <Button variant="ghost" className="me-auto text-danger" icon={<Ban className="size-4" />} onClick={() => setCancelling(true)}>
               إلغاء الوصل
             </Button>
           )}
-          <Button icon={<Printer className="size-4" />} onClick={() => printReceipt(p, billing as BillingSettings, s, paymentAbout(p, inv, deal, prop))}>
+          <Button icon={<Printer className="size-4" />} onClick={() => printReceipt(p, billing as BillingSettings, s, about)}>
             طباعة
           </Button>
         </>
@@ -731,6 +753,11 @@ function PaymentView({ p, onClose }: { p: Payment; onClose: () => void }) {
             <Link to={`/admin/deals/${deal.id}`} onClick={onClose} className="font-semibold text-teal hover:underline">
               · ملف الصفقة {prop?.ref ?? ''}
             </Link>
+          )}
+          {booking && (
+            <button type="button" onClick={() => quick('booking', booking)} className="font-semibold text-teal hover:underline">
+              · الحجز {prop?.ref ?? ''} — {booking.guest_name}
+            </button>
           )}
         </div>
         <div className="rounded-2xl bg-navy p-4 text-center text-white">
@@ -756,7 +783,7 @@ function PaymentView({ p, onClose }: { p: Payment; onClose: () => void }) {
                   الفاتورة {inv.no}
                 </button>
               ) : (
-                <span dir="ltr">{paymentAbout(p, inv, deal, prop)}</span>
+                <span dir="ltr">{about}</span>
               )}
             </dd>
           </div>

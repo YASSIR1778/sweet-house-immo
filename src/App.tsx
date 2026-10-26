@@ -21,6 +21,7 @@ const OwnerReportPage = lazy(() => import('./apps/site/pages/OwnerReport').then(
 const Estimate = lazy(() => import('./apps/site/pages/Estimate').then((m) => ({ default: m.Estimate })))
 const Market = lazy(() => import('./apps/site/pages/Market').then((m) => ({ default: m.Market })))
 const Mre = lazy(() => import('./apps/site/pages/Mre').then((m) => ({ default: m.Mre })))
+const Stays = lazy(() => import('./apps/site/pages/Stays').then((m) => ({ default: m.Stays })))
 const NotFound = lazy(() => import('./apps/site/pages/NotFound').then((m) => ({ default: m.NotFound })))
 const AdminApp = lazy(() => import('./apps/admin/AdminApp'))
 
@@ -52,6 +53,7 @@ export function App() {
                 <Route path="estimation" element={<Estimate />} />
                 <Route path="marche" element={<Market />} />
                 <Route path="mre" element={<Mre />} />
+                <Route path="sejours" element={<Stays />} />
                 <Route path="proprietaire/:token" element={<OwnerReportPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>

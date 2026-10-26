@@ -1,12 +1,13 @@
-import { AlarmClock, Building, Key, CalendarPlus, Check, ClipboardPlus, Copy, FolderLock, HandCoins, Inbox, PhoneIncoming, PhoneOutgoing, Printer, Search, UserPlus, UserX } from 'lucide-react'
+import { AlarmClock, AlertTriangle, Building, Key, CalendarPlus, Check, ClipboardPlus, Copy, FolderLock, HandCoins, Inbox, LogIn, LogOut, PhoneIncoming, PhoneOutgoing, Printer, Search, Sun, UserPlus, UserX } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { SITE_URL } from '@/shared/lib/config'
 import { useTable } from '@/shared/lib/data'
-import { addDays, fmtDate, fmtNumber, fmtPrice, fmtRelative, fmtTime, nowIso, sameDay, waLink } from '@/shared/lib/format'
+import { addDays, fmtDate, fmtNumber, fmtPrice, fmtRelative, fmtTime, localDate, nowIso, sameDay, waLink } from '@/shared/lib/format'
 import { mandateState } from '@/shared/lib/owners'
-import type { Appointment, CallLog, Lead, Lease, Mandate, Offer, Property, RentPayment, Task } from '@/shared/lib/types'
+import { bookingRest, movements, seasonOf } from '@/shared/lib/seasonal'
+import type { Appointment, Booking, CallLog, Lead, Lease, Mandate, Offer, Property, RentPayment, Task } from '@/shared/lib/types'
 import { cn } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useQuickAdd } from '../dialogs'
@@ -42,6 +43,7 @@ export function Desk() {
   const { data: offers = [] } = useTable<Offer>('offers')
   const { data: leases = [] } = useTable<Lease>('leases')
   const { data: rents = [] } = useTable<RentPayment>('rent_payments')
+  const { data: bookings = [] } = useTable<Booking>('bookings')
   const remindRent = useRentReminder()
   const lateRents = leases
     .filter((l) => l.managed && l.status === 'active')
@@ -71,6 +73,21 @@ export function Desk() {
   )
   const todayCalls = useMemo(() => calls.filter((c) => sameDay(c.created_at, now)).sort((a, b) => b.created_at.localeCompare(a.created_at)), [calls]) // eslint-disable-line react-hooks/exhaustive-deps
   const overdue = myTasks.filter((t) => t.due_at && new Date(t.due_at) < now).length
+  // summer stays: who arrives and leaves today and tomorrow, and the arrivals still to declare
+  const stays = useMemo(() => {
+    const d0 = localDate(new Date())
+    const d1 = localDate(addDays(new Date(), 1))
+    const t = movements(bookings, d0)
+    const m = movements(bookings, d1)
+    const lines = [
+      ...t.arrivals.map((b) => ({ b, out: false, today: true })),
+      ...t.departures.map((b) => ({ b, out: true, today: true })),
+      ...m.arrivals.map((b) => ({ b, out: false, today: false })),
+      ...m.departures.map((b) => ({ b, out: true, today: false })),
+    ]
+    const toDeclare = bookings.filter((b) => (b.status === 'confirmed' || b.status === 'checked_in') && b.check_in <= d0 && !b.declared_at).length
+    return { lines, toDeclare }
+  }, [bookings])
 
   const found = useMemo(() => {
     const q = find.trim().toLowerCase()
@@ -256,6 +273,43 @@ export function Desk() {
             )}
             {find && found.length === 0 && <p className="mt-3 text-center text-sm text-muted">لا توجد نتائج</p>}
           </Card>
+
+          {(stays.lines.length > 0 || stays.toDeclare > 0) && (
+            <Card title="الكراء الموسمي: اليوم وغداً" icon={<Sun className="size-4" />} action={<Link to="/admin/seasonal" className="text-xs font-semibold text-teal hover:underline">التقويم</Link>} bodyClass="p-0">
+              {stays.toDeclare > 0 && (
+                <Link to="/admin/seasonal" className="flex items-center gap-2 bg-warning/10 px-5 py-2.5 text-xs font-semibold text-warning hover:bg-warning/15">
+                  <AlertTriangle className="size-4 shrink-0" /> {stays.toDeclare} وصول لم يُصرَّح به بعد على منصة stdn.ma
+                </Link>
+              )}
+              <ul className="divide-y divide-line">
+                {stays.lines.map(({ b, out, today: now0 }) => {
+                  const p = L.property(b.property_id)
+                  const r = seasonOf(p?.season)
+                  return (
+                    <li key={`${b.id}-${out ? 'out' : 'in'}`}>
+                      <button type="button" onClick={() => quick('booking', b)} className="flex w-full items-center gap-3 px-5 py-3 text-start hover:bg-ivory">
+                        <span className={cn('inline-flex size-9 shrink-0 items-center justify-center rounded-xl', out ? 'bg-navy/5 text-navy' : 'bg-success/10 text-success')}>{out ? <LogOut className="size-4" /> : <LogIn className="size-4" />}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-navy">
+                            <span className="num text-gold-700">{p?.ref ?? '—'}</span> {b.guest_name}
+                          </span>
+                          <span className="text-xs text-muted">
+                            {out ? 'مغادرة' : 'وصول'} {now0 ? 'اليوم' : 'غداً'} · <span className="num">{out ? `قبل ${r.check_out}` : `من ${r.check_in}`}</span>
+                            {!out && bookingRest(b) > 0 && (
+                              <>
+                                {' '}· الباقي <span className="num">{fmtNumber(bookingRest(b))}</span> د.م.
+                              </>
+                            )}
+                            {out && b.caution_status === 'held' && ' · إرجاع الضمانة بعد المعاينة'}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </Card>
+          )}
 
           {lateRents.length > 0 && (
             <Card title={`أكرية متأخرة (${lateRents.length})`} icon={<Key className="size-4" />} action={<Link to="/admin/rentals?tab=dues" className="text-xs font-semibold text-teal hover:underline">المستحقات</Link>} bodyClass="p-0">

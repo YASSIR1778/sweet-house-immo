@@ -1,10 +1,11 @@
-import { ArrowLeft, ArrowRight, Bath, BedDouble, Check, Heart, MapPin, Maximize2, Search, Share2, Star } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Bath, BedDouble, Check, Heart, MapPin, Maximize2, Search, Share2, Star, Sun } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { PROPERTY_TYPES } from '@/shared/lib/config'
 import { fmtNumber, fmtPrice, pick, waLink } from '@/shared/lib/format'
+import { fromNight, seasonOf } from '@/shared/lib/seasonal'
 import { toEur } from '@/shared/lib/valuation'
 import { repo, type LeadInput } from '@/shared/lib/repo'
 import { isConfigured } from '@/shared/lib/supabase'
@@ -91,8 +92,10 @@ export function FavButton({ id, className, size = 'md' }: { id: string; classNam
 export function PropertyCard({ p, compact, eur: withEur }: { p: Property; compact?: boolean; eur?: boolean }) {
   const { s, lang, t, hoodName, typeName } = useSite()
   const rent = p.purpose === 'rent'
+  // a summer rental shows its cheapest night instead of the monthly rent
+  const night = rent && p.seasonal ? fromNight(seasonOf(p.season)) : 0
   // French and Spanish visitors (and the page for Moroccans abroad) also see the price in euros
-  const eur = withEur || lang !== 'ar' ? toEur(p.price, s.site.eur_rate ?? 0) : null
+  const eur = withEur || lang !== 'ar' ? toEur(night || p.price, s.site.eur_rate ?? 0) : null
   const isNew = Date.now() - new Date(p.created_at).getTime() < 7 * 86400e3
   return (
     <Link to={propertyPath(p)} className="group block overflow-hidden rounded-[18px] border border-line bg-white shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-card">
@@ -101,7 +104,13 @@ export function PropertyCard({ p, compact, eur: withEur }: { p: Property; compac
         <div className="absolute inset-0 bg-gradient-to-t from-navy-950/70 via-navy-950/10 to-transparent" />
         <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
           <div className="flex flex-wrap gap-1.5">
-            <Badge tone={rent ? 'teal' : 'gold'}>{rent ? t('p.forRent') : t('p.forSale')}</Badge>
+            {night > 0 ? (
+              <Badge tone="white">
+                <Sun className="size-3 text-gold-600" /> {t('stay.badge')}
+              </Badge>
+            ) : (
+              <Badge tone={rent ? 'teal' : 'gold'}>{rent ? t('p.forRent') : t('p.forSale')}</Badge>
+            )}
             {p.featured && (
               <Badge tone="navy">
                 <Star className="size-3 fill-gold text-gold" /> {t('p.featured')}
@@ -115,7 +124,13 @@ export function PropertyCard({ p, compact, eur: withEur }: { p: Property; compac
         </div>
         <div className="absolute inset-x-4 bottom-3 flex items-end justify-between text-white">
           <div>
-            <div className="num text-xl font-extrabold leading-none drop-shadow">{fmtPrice(p.price, lang, rent)}</div>
+            {night > 0 ? (
+              <div className="num text-xl font-extrabold leading-none drop-shadow">
+                {t('stay.from', { price: fmtPrice(night, lang) })} <span className="text-xs font-semibold text-white/85">{t('stay.perNight')}</span>
+              </div>
+            ) : (
+              <div className="num text-xl font-extrabold leading-none drop-shadow">{fmtPrice(p.price, lang, rent)}</div>
+            )}
             {eur ? (
               <div className="num mt-1 text-[11px] text-white/80">{t('p.eur', { n: fmtNumber(eur) })}</div>
             ) : !rent && p.area ? (
@@ -256,7 +271,7 @@ export function ShareButton({ title, url, className }: { title: string; url: str
 /* ------------------------------------------------------------------ */
 const PHONE_RE = /^\+?[\d\s().-]{8,18}$/
 
-export function LeadForm({ kind, property, children, buildMeta, showMessage = true, messageLabel, submitLabel, compact, onDone, defaultMessage, withPreferredAt, className }: { kind: LeadKind; property?: Property | null; children?: ReactNode; buildMeta?: (fd: FormData) => Record<string, unknown>; showMessage?: boolean; messageLabel?: string; submitLabel?: string; compact?: boolean; onDone?: () => void; defaultMessage?: string; withPreferredAt?: boolean; className?: string }) {
+export function LeadForm({ kind, property, children, buildMeta, showMessage = true, messageLabel, submitLabel, compact, onDone, defaultMessage, withPreferredAt, className, note }: { kind: LeadKind; property?: Property | null; children?: ReactNode; buildMeta?: (fd: FormData) => Record<string, unknown>; showMessage?: boolean; messageLabel?: string; submitLabel?: string; compact?: boolean; onDone?: () => void; defaultMessage?: string; withPreferredAt?: boolean; className?: string; /** a line put before the visitor's message (the dates of a stay…) */ note?: string }) {
   const { s, lang, t } = useSite()
   const [state, setState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -285,7 +300,7 @@ export function LeadForm({ kind, property, children, buildMeta, showMessage = tr
       name,
       phone,
       email: String(fd.get('email') ?? '').trim() || null,
-      message: String(fd.get('message') ?? '').trim() || null,
+      message: [note, String(fd.get('message') ?? '').trim()].filter(Boolean).join('\n') || null,
       kind,
       property_id: property?.id ?? null,
       property_ref: property?.ref ?? null,

@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronLeft, ChevronRight, ExternalLink, ImagePlus, Link2, Loader2, Lock, MapPin, Megaphone, Printer, Save, Star, Trash2, Upload, Video, X } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight, ExternalLink, ImagePlus, Link2, Loader2, Lock, MapPin, Megaphone, Printer, Save, Star, Sun, Trash2, Upload, Video, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -17,6 +17,7 @@ import { useBrokerOptions } from '../network-dialogs'
 import { ShareKitDialog } from '../marketing'
 import { OffersCard } from '../offers'
 import { DocumentsPanel, MandateDialog, MandatePill, PriceHistory, renewalOf } from '../owners'
+import { SeasonCard } from '../seasonal'
 import { errorText, nextRef, useCan, useDeleteRow, useLookups, useMe, useNames, useSave } from '../hooks'
 import { PROPERTY_STATUS } from '../labels'
 import { printMandate, printPropertySheet } from '../print'
@@ -59,6 +60,8 @@ function blank(ref: string, me: string): Property {
     status: 'available',
     featured: false,
     published: true,
+    seasonal: false,
+    season: {},
     views: 0,
     owner_client_id: null,
     private_notes: null,
@@ -296,7 +299,8 @@ export function PropertyEditor() {
       if (isNew && !refTouched) ref = nextRef(props, prefix)
       else return toast.error(`المرجع ${ref} مستعمل لعقار آخر`)
     }
-    const row: Property = { ...f, ref, title: f.title.trim(), updated_at: nowIso() }
+    // only a property for rent can be let by the night
+    const row: Property = { ...f, ref, title: f.title.trim(), seasonal: f.purpose === 'rent' && Boolean(f.seasonal), updated_at: nowIso() }
     const saved = await save(row, { isNew, message: isNew ? `تمت إضافة العقار ${ref}${row.published && row.status !== 'draft' ? ' ونشره على الموقع' : ''}` : undefined })
     if (!saved) return
     if (existing) for (const img of existing.images) if (!row.images.includes(img)) void repo.deleteImage(img)
@@ -524,6 +528,28 @@ export function PropertyEditor() {
             {f.video_url && !yt && <p className="mt-2 text-xs text-danger">الرابط غير معروف — استعمل رابط يوتيوب.</p>}
             {yt && <img src={`https://img.youtube.com/vi/${yt}/hqdefault.jpg`} alt="" className="mt-3 w-60 rounded-xl" />}
           </Card>
+
+          {rent && (
+            <Card
+              title="الكراء الموسمي (بالليلة)"
+              icon={<Sun className="size-4" />}
+              action={
+                !isNew && f.seasonal ? (
+                  <Link to="/admin/seasonal" className="text-xs font-semibold text-teal hover:underline">
+                    تقويم الحجوزات
+                  </Link>
+                ) : undefined
+              }
+            >
+              <SeasonCard
+                property={f}
+                onChange={(patch) => {
+                  setF((x) => (x ? { ...x, ...patch } : x))
+                  setDirty(true)
+                }}
+              />
+            </Card>
+          )}
         </div>
 
         <aside className="space-y-6">

@@ -4,9 +4,10 @@ import { IMAGES_BUCKET, getSupabase, isConfigured } from './supabase'
 import { DEFAULT_FEES } from './fee-defaults'
 import { DEMO_BILLING, nextDocNumber } from './billing'
 import { buildOwnerReport } from './owners'
-import type { Activity, Appointment, Client, FeeSettings, Lead, Mandate, OwnerReport, PriceChange, Property, SessionUser, Settings } from './types'
+import { holds, isFree } from './seasonal'
+import type { Activity, Appointment, Booking, Client, FeeSettings, Lead, Mandate, OwnerReport, PriceChange, Property, SessionUser, Settings } from './types'
 
-export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers' | 'mandates' | 'documents' | 'price_history' | 'trash' | 'offers' | 'invoices' | 'payments' | 'expenses' | 'leases' | 'rent_payments'
+export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers' | 'mandates' | 'documents' | 'price_history' | 'trash' | 'offers' | 'invoices' | 'payments' | 'expenses' | 'leases' | 'rent_payments' | 'bookings'
 
 export const TABLE: Record<TableName, string> = {
   properties: 're_properties',
@@ -29,10 +30,11 @@ export const TABLE: Record<TableName, string> = {
   expenses: 're_expenses',
   leases: 're_leases',
   rent_payments: 're_rent_payments',
+  bookings: 're_bookings',
 }
 
 /** Demo: deleted rows of these tables are kept in the local trash, like the database trigger does. */
-const LOCAL_TRASH: TableName[] = ['properties', 'clients', 'leads', 'appointments', 'tasks', 'calls', 'deals', 'brokers', 'mandates', 'documents', 'offers', 'expenses', 'leases']
+const LOCAL_TRASH: TableName[] = ['properties', 'clients', 'leads', 'appointments', 'tasks', 'calls', 'deals', 'brokers', 'mandates', 'documents', 'offers', 'expenses', 'leases', 'bookings']
 
 export const DOCS_BUCKET = 'property-docs'
 
@@ -41,6 +43,12 @@ export type PrivateKey = 'network' | 'billing'
 
 export interface Row {
   id: string
+}
+
+export interface BusyStay {
+  property_id: string
+  check_in: string
+  check_out: string
 }
 
 export type LeadInput = Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'status' | 'assigned_to' | 'client_id' | 'notes'>
@@ -69,6 +77,8 @@ export interface Repo {
   deleteDocumentFile(path: string): Promise<void>
   /** the owner's private follow-up page (null when the link is unknown or revoked) */
   ownerReport(token: string): Promise<OwnerReport | null>
+  /** nights taken on the published seasonal properties (dates only, never who) */
+  seasonalBusy(): Promise<BusyStay[]>
   resetDemo(): Promise<void>
 }
 
@@ -104,7 +114,7 @@ function stripPrivate(p: Property): Property {
 /* Demo mode: everything in localStorage, seeded with sample data        */
 /* ------------------------------------------------------------------ */
 /** Raise when the demo gains a table, so browsers seeded before receive its sample rows. */
-const SEED_VERSION = '4'
+const SEED_VERSION = '5'
 
 class LocalRepo implements Repo {
   mode = 'demo' as const
@@ -172,6 +182,11 @@ class LocalRepo implements Repo {
         const h: PriceChange = { id: uid(), property_id: row.id, old_price: before, new_price: after, changed_by: null, created_at: nowIso() }
         this.write('price_history', [h, ...this.read<PriceChange>('price_history')])
       }
+    }
+    if (table === 'bookings') {
+      // the database refuses two stays on the same nights; the demo does it here
+      const b = row as unknown as Booking
+      if (holds(b) && !isFree(rows as unknown as Booking[], b.property_id, b.check_in, b.check_out, b.id)) throw new Error('booking_overlap')
     }
     if (i < 0 && (table === 'invoices' || table === 'payments' || table === 'rent_payments')) {
       // the database numbers invoices and receipts; the demo does it here
@@ -284,6 +299,14 @@ class LocalRepo implements Repo {
   async deleteDocumentFile(): Promise<void> {
     /* stored inside the row */
   }
+  async seasonalBusy(): Promise<BusyStay[]> {
+    await this.ready
+    const open = new Set(this.read<Property>('properties').filter((p) => p.published && p.seasonal && p.status !== 'draft').map((p) => p.id))
+    const today = new Date().toISOString().slice(0, 10)
+    return this.read<Booking>('bookings')
+      .filter((b) => open.has(b.property_id) && holds(b) && b.check_out >= today)
+      .map(({ property_id, check_in, check_out }) => ({ property_id, check_in, check_out }))
+  }
   async ownerReport(token: string): Promise<OwnerReport | null> {
     await this.ready
     const client = this.read<Client>('clients').find((c) => c.share_token && c.share_token === token)
@@ -386,6 +409,11 @@ class SupabaseRepo implements Repo {
   }
   async deleteDocumentFile(path: string): Promise<void> {
     await this.sb.storage.from(DOCS_BUCKET).remove([path])
+  }
+  async seasonalBusy(): Promise<BusyStay[]> {
+    const { data, error } = await this.sb.rpc('re_seasonal_busy')
+    if (error) throw error
+    return (data ?? []) as BusyStay[]
   }
   async ownerReport(token: string): Promise<OwnerReport | null> {
     const { data, error } = await this.sb.rpc('re_owner_report', { p_token: token })

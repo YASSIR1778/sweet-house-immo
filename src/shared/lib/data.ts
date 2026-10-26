@@ -101,6 +101,11 @@ export function useSaveSettings() {
   })
 }
 
+/** Taken nights of the seasonal properties, for the website calendars. */
+export function useSeasonalBusy(enabled = true) {
+  return useQuery({ queryKey: ['seasonal-busy'], queryFn: () => repo.seasonalBusy(), staleTime: 60_000, enabled })
+}
+
 export function usePublicProperties() {
   return useQuery({ queryKey: ['public-properties'], queryFn: () => repo.publicProperties(), staleTime: 60_000 })
 }

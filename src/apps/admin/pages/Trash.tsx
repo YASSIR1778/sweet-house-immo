@@ -24,6 +24,7 @@ const KIND: Record<string, { label: string; color: string }> = {
   offers: { label: ENTITY.offer, color: '#1d4ed8' },
   expenses: { label: ENTITY.expense, color: '#b91c1c' },
   leases: { label: ENTITY.lease, color: '#0f766e' },
+  bookings: { label: ENTITY.booking, color: '#0891b2' },
 }
 
 export function Trash() {

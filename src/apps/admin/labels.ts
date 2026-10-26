@@ -1,4 +1,4 @@
-import type { AgreementMode, AppointmentKind, AppointmentStatus, BillParty, BrokerKind, ClientKind, DealStage, DocKind, ExpenseCategory, Financing, Interest, InvoiceStatus, KeysHolder, LeadKind, LeadSource, LeadStatus, LeaseStatus, LeaseUsage, MandateKind, OfferStatus, PayMethod, PriceOpinion, PropertyStatus, Purpose, Role, ShareParty, ShareSide, TaskPriority} from '@/shared/lib/types'
+import type { AgreementMode, AppointmentKind, AppointmentStatus, BillParty, BookingSource, BookingStatus, BrokerKind, CautionStatus, ClientKind, DealStage, DocKind, ExpenseCategory, Financing, GuestIdType, Interest, InvoiceStatus, KeysHolder, LeadKind, LeadSource, LeadStatus, LeaseStatus, LeaseUsage, MandateKind, OfferStatus, PayMethod, PriceOpinion, PropertyStatus, Purpose, Role, ShareParty, ShareSide, TaskPriority} from '@/shared/lib/types'
 import type { RentStatus } from '@/shared/lib/rentals'
 
 export interface Lbl {
@@ -23,6 +23,7 @@ export const LEAD_KIND: Record<LeadKind, Lbl> = {
   valuation: { label: 'طلب تقييم', color: '#7c3aed' },
   callback: { label: 'معاودة الاتصال', color: '#475569' },
   contact: { label: 'رسالة تواصل', color: '#475569' },
+  booking: { label: 'طلب حجز موسمي', color: '#0891b2' },
 }
 
 export const SOURCE: Record<LeadSource, Lbl> = {
@@ -194,6 +195,7 @@ export const ENTITY: Record<string, string> = {
   payment: 'وصل',
   expense: 'مصروف',
   lease: 'عقد كراء',
+  booking: 'حجز موسمي',
   rent: 'أداء كراء',
   billing: 'معلومات الفوترة',
   session: 'الجلسة',
@@ -225,6 +227,38 @@ export const PAY_METHOD: Record<PayMethod, string> = {
 
 /** Who pays, in the words of the deal. */
 export const partyLabel = (p: BillParty, kind: Purpose) => (p === 'seller' ? (kind === 'rent' ? 'المالك' : 'البائع') : p === 'buyer' ? (kind === 'rent' ? 'المكتري' : 'المشتري') : 'آخر')
+
+/* ---------------------------------------------------------------- seasonal rentals */
+export const BOOKING_STATUS: Record<BookingStatus, Lbl> = {
+  request: { label: 'طلب', color: '#b45309' },
+  confirmed: { label: 'مؤكد', color: '#1d4ed8' },
+  checked_in: { label: 'في الإقامة', color: '#15803d' },
+  completed: { label: 'انتهى', color: '#64748b' },
+  cancelled: { label: 'ملغى', color: '#b91c1c' },
+  blocked: { label: 'استعمال المالك', color: '#7c3aed' },
+}
+export const BOOKING_SOURCE: Record<BookingSource, string> = {
+  website: 'الموقع',
+  phone: 'الهاتف',
+  whatsapp: 'واتساب',
+  walkin: 'زيارة الوكالة',
+  airbnb: 'Airbnb',
+  booking: 'Booking.com',
+  owner: 'المالك',
+  other: 'أخرى',
+}
+export const GUEST_ID: Record<GuestIdType, string> = {
+  cin: 'البطاقة الوطنية',
+  passport: 'جواز السفر',
+  residence: 'بطاقة الإقامة',
+  other: 'وثيقة أخرى',
+}
+export const CAUTION_STATUS: Record<CautionStatus, string> = {
+  none: 'لم تُؤدَّ',
+  held: 'عند الوكالة',
+  returned: 'أُرجعت',
+  kept: 'احتُجزت (أضرار)',
+}
 
 /* ---------------------------------------------------------------- rentals */
 export const LEASE_STATUS: Record<LeaseStatus, Lbl> = {

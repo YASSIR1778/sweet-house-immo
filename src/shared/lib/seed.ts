@@ -1,7 +1,8 @@
 import { defaultChecklist } from './billing'
 import { addMonths, periodOf, periodsBetween } from './rentals'
+import { quote, seasonOf } from './seasonal'
 import { DEMO_USERS } from './config'
-import type { Activity, Appointment, Broker, CallLog, Client, Deal, Expense, Invoice, Lead, Lease, Mandate, Offer, Payment, PriceChange, Property, RentPayment, Staff, Task } from './types'
+import type { Activity, Appointment, Booking, Broker, CallLog, Client, Deal, Expense, Invoice, Lead, Lease, Mandate, Offer, Payment, PriceChange, Property, RentPayment, SeasonRates, Staff, Task } from './types'
 
 const img = (id: string, w = 1400) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`
 
@@ -32,6 +33,10 @@ function prop(p: PropertySeed, createdDaysAgo: number): Property {
     updated_at: ago(Math.max(0, createdDaysAgo - 1), 15),
   }
 }
+
+/** Summer rates of the demo seasonal properties. */
+const VILLA_SEASON: Partial<SeasonRates> = { night: 1_400, high_night: 2_600, high_from: '07-01', high_to: '08-31', week_discount: 10, min_nights: 3, high_min_nights: 7, guests: 8, cleaning: 500, deposit_pct: 30, caution: 3_000, check_in: '16:00', check_out: '11:00', commission: 20, license: '' }
+const FLAT_SEASON: Partial<SeasonRates> = { night: 650, high_night: 1_200, high_from: '07-01', high_to: '08-31', week_discount: 10, min_nights: 2, high_min_nights: 5, guests: 6, cleaning: 250, deposit_pct: 30, caution: 1_500, check_in: '15:00', check_out: '12:00', commission: 20, license: '' }
 
 export function seedProperties(): Property[] {
   return [
@@ -388,6 +393,8 @@ export function seedProperties(): Property[] {
         status: 'available',
         featured: true,
         published: true,
+        seasonal: true,
+        season: VILLA_SEASON,
       },
       8,
     ),
@@ -664,6 +671,42 @@ export function seedProperties(): Property[] {
       },
       0,
     ),
+    prop(
+      {
+        id: 'p-1019',
+        ref: 'SH-1019',
+        title: 'شقة للكراء الموسمي بإطلالة على البحر — كابو نيغرو',
+        title_fr: 'Appartement saisonnier vue mer — Cabo Negro',
+        title_es: 'Apartamento de temporada con vistas al mar — Cabo Negro',
+        description: 'شقة مفروشة في إقامة محروسة بمسبح، على بعد دقيقتين من شاطئ كابو نيغرو: غرفتا نوم، صالون مغربي، شرفة مطلة على البحر، مطبخ مجهز، تكييف وموقف. تُكرى بالليلة أو بالأسبوع، والأفضل الحجز مبكراً لشهري يوليوز وغشت.',
+        description_fr: 'Appartement meublé dans une résidence gardée avec piscine, à deux minutes de la plage de Cabo Negro : deux chambres, salon marocain, balcon vue mer, cuisine équipée, climatisation et parking. Location à la nuit ou à la semaine ; réservez tôt pour juillet et août.',
+        description_es: 'Apartamento amueblado en residencia vigilada con piscina, a dos minutos de la playa de Cabo Negro: dos dormitorios, salón marroquí, balcón con vistas al mar, cocina equipada, aire acondicionado y parking. Alquiler por noche o semana; reserve pronto para julio y agosto.',
+        type: 'apartment',
+        purpose: 'rent',
+        price: 6_000,
+        area: 85,
+        land_area: null,
+        rooms: 3,
+        bedrooms: 2,
+        bathrooms: 1,
+        floor: 2,
+        floors: null,
+        year_built: 2019,
+        furnished: true,
+        features: ['sea_view', 'pool', 'beach', 'ac', 'parking', 'balcony', 'security', 'kitchen'],
+        neighborhood: 'cabo-negro',
+        city: 'كابو نيغرو',
+        lat: 35.6642,
+        lng: -5.2861,
+        images: [img('1567767292278-a4f21aa2d36e'), img('1600563438938-a9a27216b4f5'), img('1512918728675-ed5a9ecdebfd')],
+        status: 'available',
+        featured: false,
+        published: true,
+        seasonal: true,
+        season: FLAT_SEASON,
+      },
+      120,
+    ),
   ]
 }
 
@@ -707,6 +750,7 @@ export function seedLeads(): Lead[] {
     l({ id: 'l-6', name: 'Laura Fernández', phone: '+34612345678', kind: 'inquiry', status: 'visit', property_id: 'p-1001', property_ref: 'SH-1001', source: 'instagram', lang: 'es', client_id: 'c-2', assigned_to: ADMIN, created_at: ago(9, 19) }),
     l({ id: 'l-7', name: 'هشام العمراني', phone: '0611223344', kind: 'valuation', status: 'won', message: 'تقييم شقة في طابولة', source: 'whatsapp', assigned_to: SEC, created_at: ago(20, 9) }),
     l({ id: 'l-8', name: 'فؤاد المرابط', phone: '0699887766', kind: 'contact', status: 'lost', message: 'يبحث عن محل تجاري بأقل من 4000 درهم', source: 'facebook', created_at: ago(12, 14) }),
+    l({ id: 'l-10', name: 'Laura Fernández', phone: '+34612345678', kind: 'booking', status: 'new', property_id: 'p-1019', property_ref: 'SH-1019', lang: 'es', client_id: 'c-2', message: 'Nos gustaría pasar el fin de año en Cabo Negro, 4 personas.', meta: { booking: { check_in: at(65, 12).slice(0, 10), check_out: at(69, 12).slice(0, 10), guests: 4 } }, created_at: ago(0, 10, 5) }),
     l({ id: 'l-9', name: 'Pierre Dubois', phone: '+33612345678', kind: 'inquiry', status: 'contacted', property_id: 'p-1002', property_ref: 'SH-1002', lang: 'fr', message: 'Bonjour, la villa est-elle disponible en juillet pour une visite ?', assigned_to: SEC, created_at: ago(1, 9, 30) }),
   ]
 }
@@ -999,6 +1043,65 @@ export function seedRentPayments(): RentPayment[] {
     .reverse()
 }
 
+/* Stays of the two seasonal properties: last summer, the coming weeks, next summer. */
+/** Last summer or next summer, whatever the date the demo is opened. */
+function summer(md: string, next = false): string {
+  const today = at(0, 12).slice(0, 10)
+  const y = Number(today.slice(0, 4))
+  if (next) return `${y}-${md}` > today ? `${y}-${md}` : `${y + 1}-${md}`
+  return `${y}-${md}` < today ? `${y}-${md}` : `${y - 1}-${md}`
+}
+/** The early booking for next August and its deposit (also on its receipt). */
+const nextAugust = () => ({ check_in: summer('08-02', true), check_out: summer('08-16', true) })
+const nextAugustDeposit = () => quote(seasonOf(VILLA_SEASON), nextAugust().check_in, nextAugust().check_out, 8).deposit
+
+export function seedBookings(): Booking[] {
+  const day = (n: number) => at(n, 12).slice(0, 10)
+  const price = (season: Partial<SeasonRates>, a: string, b: string, guests: number) => {
+    const q = quote(seasonOf(season), a, b, guests)
+    return { rent: q.rent, cleaning: q.cleaning, deposit: q.deposit, caution: q.caution }
+  }
+  const bk = (x: Partial<Booking> & Pick<Booking, 'id' | 'property_id' | 'status' | 'check_in' | 'check_out' | 'guest_name'>, season: Partial<SeasonRates>): Booking => ({
+    client_id: null,
+    lead_id: null,
+    source: 'whatsapp',
+    guests: 4,
+    guest_phone: null,
+    guest_lang: 'ar',
+    guest_id_type: null,
+    guest_id_no: null,
+    guest_nationality: null,
+    guest_birth: null,
+    guest_address: null,
+    declared_at: null,
+    caution_status: 'none',
+    paid: 0,
+    commission_rate: season.commission ?? 20,
+    owner_paid_at: null,
+    notes: null,
+    created_by: SEC,
+    created_at: ago(40),
+    updated_at: ago(2),
+    ...price(season, x.check_in, x.check_out, x.guests ?? 4),
+    ...x,
+  })
+  const done = (b: Booking): Booking => ({ ...b, paid: b.rent + b.cleaning, caution_status: 'returned', declared_at: `${b.check_in}T17:00:00.000Z`, owner_paid_at: b.check_out })
+  return [
+    done(bk({ id: 'bk-1', property_id: 'p-1010', status: 'completed', check_in: summer('07-04'), check_out: summer('07-18'), guests: 7, guest_name: 'عائلة الإدريسي', guest_phone: '+32470123456', guest_id_type: 'passport', guest_id_no: 'EM1234567', guest_nationality: 'مغربية', notes: 'مغاربة العالم من بروكسيل، يعودون كل صيف.' }, VILLA_SEASON)),
+    done(bk({ id: 'bk-2', property_id: 'p-1010', status: 'completed', source: 'website', check_in: summer('08-01'), check_out: summer('08-15'), guests: 6, guest_name: 'Famille Benali', guest_phone: '+33612003344', guest_lang: 'fr', guest_id_type: 'passport', guest_id_no: '19FR45821', guest_nationality: 'Française' }, VILLA_SEASON)),
+    done(bk({ id: 'bk-3', property_id: 'p-1010', status: 'completed', source: 'airbnb', check_in: summer('08-18'), check_out: summer('08-25'), guests: 5, guest_name: 'Carlos García', guest_lang: 'es', guest_id_type: 'passport', guest_id_no: 'PAB998877', guest_nationality: 'Española' }, VILLA_SEASON)),
+    done(bk({ id: 'bk-4', property_id: 'p-1019', status: 'completed', check_in: summer('07-10'), check_out: summer('07-17'), guests: 5, guest_name: 'عائلة الحداد', guest_phone: '0661445566', guest_id_type: 'cin', guest_id_no: 'L123456', guest_nationality: 'مغربية' }, FLAT_SEASON)),
+    done(bk({ id: 'bk-5', property_id: 'p-1019', status: 'completed', source: 'phone', check_in: summer('08-05'), check_out: summer('08-12'), guests: 4, guest_name: 'هشام العمراني', guest_phone: '0611223344', guest_id_type: 'cin', guest_id_no: 'LB98765', guest_nationality: 'مغربية' }, FLAT_SEASON)),
+    // arriving today, not declared yet
+    bk({ id: 'bk-6', property_id: 'p-1019', status: 'confirmed', source: 'phone', check_in: day(0), check_out: day(3), guests: 3, guest_name: 'Nadia Benali', guest_phone: '0633445566', guest_lang: 'fr', paid: 600, caution_status: 'none', created_at: ago(6) }, FLAT_SEASON),
+    bk({ id: 'bk-7', property_id: 'p-1019', status: 'confirmed', client_id: 'c-5', source: 'phone', check_in: day(32), check_out: day(35), guests: 2, guest_name: 'Youssef El Idrissi', guest_phone: '0612345678', guest_lang: 'fr', created_at: ago(3) }, FLAT_SEASON),
+    // the owner keeps the villa for the end of the year
+    bk({ id: 'bk-8', property_id: 'p-1010', status: 'blocked', source: 'owner', check_in: day(59), check_out: day(68), guests: 1, guest_name: 'المالك وعائلته', rent: 0, cleaning: 0, deposit: 0, caution: 0, commission_rate: 0 }, VILLA_SEASON),
+    // early booking for next August, deposit paid
+    bk({ id: 'bk-9', property_id: 'p-1010', status: 'confirmed', source: 'whatsapp', ...nextAugust(), guests: 8, guest_name: 'Karim Tahiri', guest_phone: '+33650112233', guest_lang: 'fr', paid: nextAugustDeposit(), created_at: ago(9) }, VILLA_SEASON),
+  ]
+}
+
 /* Invoices and receipts of the last deals, and the agency's expenses (VAT 20 %). */
 export function seedInvoices(): Invoice[] {
   const day = (n: number) => at(-n, 12).slice(0, 10)
@@ -1051,6 +1154,7 @@ export function seedPayments(): Payment[] {
     ...x,
   })
   return [
+    pay({ id: 'pay-4', no: 'R-2026-0004', booking_id: 'bk-9', payer_name: 'Karim Tahiri', amount: nextAugustDeposit(), method: 'transfer', reference: 'Virement SEPA', received_at: day(5), notes: 'Acompte 30 % — août' }),
     pay({ id: 'pay-3', no: 'R-2026-0003', deal_id: 'd-8', invoice_id: 'inv-3', payer_name: 'M. Omar El Kacemi', amount: 3_800, received_at: day(12) }),
     pay({ id: 'pay-2', no: 'R-2026-0002', deal_id: 'd-3', invoice_id: 'inv-2', party: 'seller', payer_name: 'Mme Fatima Zahra Bennani', amount: 27_500, method: 'cheque', reference: 'Chèque n° 0012457', received_at: day(56) }),
     pay({ id: 'pay-1', no: 'R-2026-0001', deal_id: 'd-3', invoice_id: 'inv-1', client_id: 'c-5', payer_name: 'Youssef El Idrissi', amount: 27_500, method: 'transfer', reference: 'Virement 58213', received_at: day(57) }),
@@ -1131,6 +1235,7 @@ export function seedData() {
     expenses: seedExpenses(),
     leases: seedLeases(),
     rent_payments: seedRentPayments(),
+    bookings: seedBookings(),
     calls: seedCalls(),
     staff: seedStaff(),
     activity: seedActivity(),
