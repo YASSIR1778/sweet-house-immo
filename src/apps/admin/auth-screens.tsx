@@ -47,6 +47,10 @@ function authError(err: string): string {
   if (/email not confirmed/i.test(err)) return 'أكّد بريدك الإلكتروني أولاً من الرسالة التي وصلتك، ثم سجّل الدخول.'
   if (/signups? not allowed|signup.*disabled/i.test(err)) return 'إنشاء الحسابات من هنا مغلق. اطلب من المدير إنشاء حسابك من لوحة Supabase، ثم سجّل الدخول.'
   if (/rate limit|too many/i.test(err)) return 'محاولات كثيرة. انتظر دقيقة ثم أعد المحاولة.'
+  if (/not authorized|error sending/i.test(err))
+    return 'تعذر إرسال رسالة التأكيد إلى هذا البريد. يمكن للمدير إنشاء الحساب من لوحة Supabase: Authentication ثم Users ثم Add user، مع تفعيل Auto Confirm User.'
+  if (/already (been )?registered|already exists/i.test(err)) return 'هذا البريد مسجل مسبقاً. سجّل الدخول به، أو استعمل «نسيت كلمة المرور؟».'
+  if (/password should|weak password|at least/i.test(err)) return 'كلمة المرور قصيرة أو ضعيفة: 8 أحرف على الأقل، فيها أرقام وحروف.'
   return err
 }
 
