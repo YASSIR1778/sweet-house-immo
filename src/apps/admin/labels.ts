@@ -1,4 +1,4 @@
-import type { AgreementMode, AppointmentKind, AppointmentStatus, BrokerKind, ClientKind, DocKind, KeysHolder, LeadKind, LeadSource, LeadStatus, MandateKind, PropertyStatus, Purpose, Role, ShareParty, ShareSide, TaskPriority } from '@/shared/lib/types'
+import type { AgreementMode, AppointmentKind, AppointmentStatus, BrokerKind, ClientKind, DocKind, Financing, Interest, KeysHolder, LeadKind, LeadSource, LeadStatus, MandateKind, OfferStatus, PriceOpinion, PropertyStatus, Purpose, Role, ShareParty, ShareSide, TaskPriority } from '@/shared/lib/types'
 
 export interface Lbl {
   label: string
@@ -73,6 +73,32 @@ export const PRIORITY: Record<TaskPriority, Lbl> = {
   low: { label: 'منخفضة', color: '#64748b' },
   normal: { label: 'عادية', color: '#1d4ed8' },
   high: { label: 'مستعجلة', color: '#b91c1c' },
+}
+
+export const OFFER_STATUS: Record<OfferStatus, Lbl> = {
+  pending: { label: 'قيد الدراسة', color: '#1d4ed8' },
+  countered: { label: 'عرض مضاد', color: '#b45309' },
+  accepted: { label: 'مقبول', color: '#15803d' },
+  rejected: { label: 'مرفوض', color: '#b91c1c' },
+  withdrawn: { label: 'مسحوب', color: '#64748b' },
+}
+
+export const FINANCING: Record<Financing, string> = {
+  cash: 'نقداً',
+  loan: 'بقرض بنكي',
+  mixed: 'نقداً وقرض',
+}
+
+export const INTEREST: Record<Interest, Lbl> = {
+  hot: { label: 'مهتم جداً', color: '#15803d' },
+  warm: { label: 'متردد', color: '#b45309' },
+  cold: { label: 'غير مهتم', color: '#64748b' },
+}
+
+export const PRICE_OPINION: Record<PriceOpinion, Lbl> = {
+  low: { label: 'يراه فرصة', color: '#15803d' },
+  fair: { label: 'الثمن مناسب', color: '#0f766e' },
+  high: { label: 'يراه مرتفعاً', color: '#b91c1c' },
 }
 
 export const MANDATE_KIND: Record<MandateKind, Lbl> = {
@@ -162,6 +188,7 @@ export const ENTITY: Record<string, string> = {
   mandate: 'تفويض',
   document: 'وثيقة',
   owner_report: 'تقرير المالك',
+  offer: 'عرض',
   session: 'الجلسة',
 }
 

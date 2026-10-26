@@ -1,5 +1,5 @@
 import { DEMO_USERS } from './config'
-import type { Activity, Appointment, Broker, CallLog, Client, Deal, Lead, Mandate, PriceChange, Property, Staff, Task } from './types'
+import type { Activity, Appointment, Broker, CallLog, Client, Deal, Lead, Mandate, Offer, PriceChange, Property, Staff, Task } from './types'
 
 const img = (id: string, w = 1400) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`
 
@@ -718,9 +718,12 @@ export function seedAppointments(): Appointment[] {
     a({ id: 'a-3', title: 'زيارة الدوبلكس SH-1008 — محمد بنعيسى', kind: 'visit', starts_at: at(1, 11, 0), ends_at: at(1, 11, 45), property_id: 'p-1008', client_id: 'c-3', assigned_to: SEC, status: 'scheduled' }),
     a({ id: 'a-4', title: 'توقيع عقد البيع عند الموثق — SH-1017', kind: 'signing', starts_at: at(2, 15, 0), ends_at: at(2, 16, 30), property_id: 'p-1017', client_id: null, assigned_to: ADMIN, status: 'scheduled', notes: 'مكتب الموثق بشارع محمد الخامس. إحضار نسخة الرسم العقاري.' }),
     a({ id: 'a-5', title: 'اجتماع مع المالكة خديجة — تجديد الوكالة', kind: 'meeting', starts_at: at(4, 12, 0), ends_at: at(4, 12, 30), property_id: 'p-1004', client_id: 'c-4', assigned_to: ADMIN, status: 'scheduled' }),
-    a({ id: 'a-6', title: 'زيارة SH-1012 — عائلة الزياني', kind: 'visit', starts_at: ago(1, 17, 0), ends_at: ago(1, 17, 45), property_id: 'p-1012', client_id: null, assigned_to: SEC, status: 'done', notes: 'أعجبتهم الشقة، سيعودون بعرض.' }),
+    a({ id: 'a-6', title: 'زيارة SH-1012 — عائلة الزياني', kind: 'visit', starts_at: ago(1, 17, 0), ends_at: ago(1, 17, 45), property_id: 'p-1012', client_id: null, assigned_to: SEC, status: 'done', notes: 'أعجبتهم الشقة، سيعودون بعرض.', feedback_interest: 'hot', feedback_price: 'fair', feedback_note: 'أعجبتهم الإطلالة والهدوء، يقارنونها بشقة أخرى في المدينة الجديدة.' }),
     a({ id: 'a-7', title: 'زيارة SH-1009 — لم يحضر العميل', kind: 'visit', starts_at: ago(3, 10, 0), ends_at: ago(3, 10, 30), property_id: 'p-1009', client_id: null, assigned_to: SEC, status: 'noshow' }),
     a({ id: 'a-8', title: 'زيارة الاستوديو SH-1007 — سعاد الحداد', kind: 'visit', starts_at: at(1, 16, 0), ends_at: at(1, 16, 30), property_id: 'p-1007', client_id: 'c-6', assigned_to: SEC, status: 'scheduled' }),
+    a({ id: 'a-9', title: 'زيارة الرياض SH-1004 — زوجان من ليون', kind: 'visit', starts_at: ago(8, 11, 0), ends_at: ago(8, 12, 0), property_id: 'p-1004', client_id: null, assigned_to: ADMIN, status: 'done', created_at: ago(10), feedback_interest: 'hot', feedback_price: 'high', feedback_note: 'أحبوا الزليج والفناء، يريدون مشروع دار ضيافة. الثمن عندهم مرتفع قليلاً.' }),
+    a({ id: 'a-10', title: 'زيارة الرياض SH-1004 — مستثمر من طنجة', kind: 'visit', starts_at: ago(27, 16, 0), ends_at: ago(27, 16, 45), property_id: 'p-1004', client_id: null, assigned_to: SEC, status: 'done', created_at: ago(29), feedback_interest: 'warm', feedback_price: 'high', feedback_note: 'يرى أن الترميم يحتاج ميزانية إضافية.' }),
+    a({ id: 'a-11', title: 'زيارة الرياض SH-1004 — عائلة من تطوان', kind: 'visit', starts_at: ago(52, 10, 0), ends_at: ago(52, 10, 45), property_id: 'p-1004', client_id: null, assigned_to: SEC, status: 'done', created_at: ago(54), feedback_interest: 'cold', feedback_price: 'high', feedback_note: 'يبحثون عن شقة بمصعد، الرياض لا يناسبهم.' }),
   ]
 }
 
@@ -771,6 +774,26 @@ export function seedMandates(): Mandate[] {
       created_at: ago(160),
       updated_at: ago(160),
     },
+  ]
+}
+
+export function seedOffers(): Offer[] {
+  const o = (x: Partial<Offer> & Pick<Offer, 'id' | 'property_id' | 'amount' | 'status' | 'created_at'>): Offer => ({
+    client_id: null,
+    financing: 'cash',
+    conditions: null,
+    counter_amount: null,
+    valid_until: null,
+    notes: null,
+    created_by: ADMIN,
+    updated_at: x.created_at,
+    ...x,
+  })
+  return [
+    o({ id: 'o-1', property_id: 'p-1004', amount: 1_450_000, financing: 'loan', conditions: 'بشرط موافقة البنك على القرض', status: 'countered', counter_amount: 1_600_000, valid_until: at(5, 12).slice(0, 10), notes: 'الزوجان من ليون، زارا الرياض مرتين.', created_at: ago(6, 18), updated_at: ago(2, 12) }),
+    o({ id: 'o-2', property_id: 'p-1004', amount: 1_300_000, status: 'rejected', notes: 'رفضته المالكة: بعيد عن الثمن.', created_at: ago(26, 11), updated_at: ago(25, 10) }),
+    o({ id: 'o-3', property_id: 'p-1013', amount: 1_150_000, status: 'pending', valid_until: at(2, 12).slice(0, 10), notes: 'عرض رشيد بوزيان بالهاتف، أداء نقداً.', created_by: SEC, created_at: ago(5, 12) }),
+    o({ id: 'o-4', property_id: 'p-1017', amount: 720_000, financing: 'mixed', status: 'accepted', notes: 'قبله المالك، التوقيع عند الموثق.', created_at: ago(12, 15), updated_at: ago(9, 10) }),
   ]
 }
 
@@ -871,6 +894,7 @@ export function seedData() {
     brokers: seedBrokers(),
     mandates: seedMandates(),
     price_history: seedPriceHistory(),
+    offers: seedOffers(),
     calls: seedCalls(),
     staff: seedStaff(),
     activity: seedActivity(),

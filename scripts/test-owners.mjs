@@ -1,5 +1,5 @@
 // npm run test:owners — mandate states, owner commission and the owner report message.
-import { buildOwnerReport, currentMandate, daysOnMarket, mandateCommission, mandateState, ownerReportText } from '../src/shared/lib/owners.ts'
+import { buildOwnerReport, currentMandate, daysOnMarket, mandateCommission, mandateState, offerMessage, ownerReportText } from '../src/shared/lib/owners.ts'
 
 let pass = 0
 let fail = 0
@@ -69,6 +69,29 @@ const built = buildOwnerReport(
 )
 const bp = built.properties[0]
 ok('report from the tables: only his properties, counts, prices, mandate', built.name === 'خديجة' && built.properties.length === 1 && bp.leads === 2 && bp.visits_done === 1 && bp.visits_planned === 1 && bp.prices.length === 2 && bp.mandate?.kind === 'exclusive' && bp.image === 'a.jpg', JSON.stringify(bp))
+
+const withFb = buildOwnerReport(
+  { id: 'c1', full_name: 'خديجة الريسوني', lang: 'ar' },
+  [{ id: 'p1', ref: 'SH-1', title: 'رياض', purpose: 'sale', type: 'riad', status: 'available', published: true, price: 2_000_000, images: [], views: 10, created_at: '2026-01-01', owner_client_id: 'c1' }],
+  [],
+  [
+    { property_id: 'p1', kind: 'visit', status: 'done', starts_at: '2026-10-01T10:00:00Z', feedback_interest: 'hot', feedback_price: 'high' },
+    { property_id: 'p1', kind: 'visit', status: 'done', starts_at: '2026-10-02T10:00:00Z', feedback_interest: 'cold', feedback_price: 'high' },
+    { property_id: 'p1', kind: 'visit', status: 'done', starts_at: '2026-10-03T10:00:00Z', feedback_interest: 'warm', feedback_price: 'fair' },
+  ],
+  [],
+  [],
+  today,
+  [{ property_id: 'p1', status: 'pending' }, { property_id: 'p1', status: 'withdrawn' }],
+)
+const wf = withFb.properties[0]
+ok('report: visitors feedback counted, withdrawn offers ignored', wf.offers === 1 && wf.feedback.hot === 1 && wf.feedback.cold === 1 && wf.feedback.warm === 1 && wf.feedback.price_high === 2 && wf.feedback.price_fair === 1, JSON.stringify(wf))
+const fbText = ownerReportText(withFb, 'سويت هاوس', null, fmt)
+ok('report text: offers and visitors opinion', fbText.includes('والعروض المتوصل بها 1') && fbText.includes('مهتمون 1 من 3') && fbText.includes('يرى 2 منهم أن الثمن مرتفع'), fbText)
+const om = offerMessage({ amount: 1_800_000, financing: 'loan', conditions: 'بشرط موافقة البنك' }, { ref: 'SH-1004', price: 2_000_000 }, { full_name: 'خديجة الريسوني', lang: 'ar' }, 'سويت هاوس', fmt)
+ok('offer message AR: amount, % of price, financing, conditions', om.startsWith('السلام عليكم خديجة') && om.includes('1 800 000 DH') && om.includes('90%') && om.includes('بقرض بنكي') && om.includes('بشرط موافقة البنك.'), om)
+const omFr = offerMessage({ amount: 950_000, financing: 'cash', conditions: null }, { ref: 'SH-2', price: 1_000_000 }, { full_name: 'Youssef El Idrissi', lang: 'fr' }, 'Sweet House', fmt)
+ok('offer message FR without conditions', omFr.startsWith('Bonjour Youssef') && omFr.includes('95 %') && omFr.includes('comptant') && !omFr.includes('undefined'), omFr)
 
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

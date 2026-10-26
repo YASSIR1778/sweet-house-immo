@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { CalendarCheck, CalendarClock, Eye, Inbox, Lock, ShieldCheck, Timer, TrendingDown, TrendingUp } from 'lucide-react'
+import { CalendarCheck, CalendarClock, Eye, HandCoins, Inbox, Lock, MessageSquareQuote, ShieldCheck, Timer, TrendingDown, TrendingUp } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
 import { fmtDate, fmtNumber, fmtPrice, waLink } from '@/shared/lib/format'
 import { daysOnMarket } from '@/shared/lib/owners'
 import { repo } from '@/shared/lib/repo'
-import type { OwnerReport } from '@/shared/lib/types'
+import type { OwnerReport, VisitFeedback } from '@/shared/lib/types'
 import { EmptyState, Skeleton } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { PageHero } from '../components'
@@ -19,6 +19,60 @@ function Metric({ icon, label, value }: { icon: ReactNode; label: string; value:
         {label}
       </div>
       <div className="num mt-1 text-xl font-extrabold text-navy">{value}</div>
+    </div>
+  )
+}
+
+/** One stacked bar with its legend (interest, or opinion on the price). */
+function Split({ title, parts }: { title: string; parts: { key: string; label: string; n: number; color: string }[] }) {
+  const total = parts.reduce((a, p) => a + p.n, 0)
+  if (!total) return null
+  return (
+    <div>
+      <div className="mb-1.5 text-xs font-semibold text-muted">{title}</div>
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-sand">
+        {parts
+          .filter((p) => p.n)
+          .map((p) => (
+            <span key={p.key} style={{ width: `${(p.n / total) * 100}%`, background: p.color }} />
+          ))}
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+        {parts.map((p) => (
+          <span key={p.key} className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full" style={{ background: p.color }} />
+            {p.label} <b className="num text-navy">{p.n}</b>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Feedback({ f, t }: { f: VisitFeedback; t: (k: string) => string }) {
+  if (f.hot + f.warm + f.cold + f.price_high + f.price_fair + f.price_low === 0) return null
+  return (
+    <div className="mt-4 space-y-3 rounded-2xl border border-line p-4">
+      <h3 className="flex items-center gap-2 text-sm font-bold text-navy">
+        <MessageSquareQuote className="size-4 text-teal" /> {t('owner.fb.title')}
+      </h3>
+      <Split
+        title={t('owner.fb.interest')}
+        parts={[
+          { key: 'hot', label: t('owner.fb.hot'), n: f.hot, color: '#15803d' },
+          { key: 'warm', label: t('owner.fb.warm'), n: f.warm, color: '#d97706' },
+          { key: 'cold', label: t('owner.fb.cold'), n: f.cold, color: '#94a3b8' },
+        ]}
+      />
+      <Split
+        title={t('owner.fb.price')}
+        parts={[
+          { key: 'low', label: t('owner.fb.price_low'), n: f.price_low, color: '#15803d' },
+          { key: 'fair', label: t('owner.fb.price_fair'), n: f.price_fair, color: '#0f766e' },
+          { key: 'high', label: t('owner.fb.price_high'), n: f.price_high, color: '#b91c1c' },
+        ]}
+      />
+      <p className="text-xs text-subtle">{t('owner.fb.note')}</p>
     </div>
   )
 }
@@ -109,8 +163,10 @@ export function OwnerReportPage() {
                         <Metric icon={<CalendarCheck className="size-3.5" />} label={t('owner.visits')} value={fmtNumber(p.visits_done)} />
                         <Metric icon={<CalendarClock className="size-3.5" />} label={t('owner.planned')} value={fmtNumber(p.visits_planned)} />
                         <Metric icon={<Timer className="size-3.5" />} label={t('owner.days')} value={fmtNumber(daysOnMarket(p.created_at))} />
+                        {p.offers != null && <Metric icon={<HandCoins className="size-3.5" />} label={t('owner.offers')} value={fmtNumber(p.offers)} />}
                       </div>
                       {p.last_visit && <p className="mt-3 text-xs text-muted">{t('owner.lastVisit', { d: fmtDate(p.last_visit, lang) })}</p>}
+                      {p.feedback && <Feedback f={p.feedback} t={t} />}
                       {p.prices.length > 1 && (
                         <div className="mt-4">
                           <h3 className="mb-2 text-sm font-bold text-navy">{t('owner.prices')}</h3>

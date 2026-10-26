@@ -8,7 +8,7 @@ import { useSettings, useTable } from '@/shared/lib/data'
 import { fmtDate, fmtNumber, fmtPrice, localDate, nowIso, pick, uid, waLink } from '@/shared/lib/format'
 import { buildOwnerReport, currentMandate, daysOnMarket, mandateState, ownerReportText } from '@/shared/lib/owners'
 import { logActivity, repo } from '@/shared/lib/repo'
-import type { Appointment, Client, DocKind, KeysHolder, Lead, Mandate, MandateKind, MandateStatus, PriceChange, Property, PropertyDocument, Settings } from '@/shared/lib/types'
+import type { Appointment, Client, DocKind, KeysHolder, Lead, Mandate, MandateKind, MandateStatus, Offer, PriceChange, Property, PropertyDocument, Settings } from '@/shared/lib/types'
 import { Button, Drawer, Field, Input, Modal, Segmented, Select, Switch, Textarea, cn, useConfirm } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useClientOptions, useQuickAdd } from './dialogs'
@@ -500,11 +500,12 @@ export function OwnerFile({ client, onClose }: { client: Client; onClose: () => 
   const { data: prices = [] } = useTable<PriceChange>('price_history')
   const { data: leads = [] } = useTable<Lead>('leads')
   const { data: appts = [] } = useTable<Appointment>('appointments')
+  const { data: offers = [] } = useTable<Offer>('offers')
   const saveClient = useSave<Client>('clients', 'client', (c) => c.full_name)
   const [mandateFor, setMandateFor] = useState<{ property: Property; initial?: Partial<Mandate> } | null>(null)
 
   const owned = L.properties.filter((p) => p.owner_client_id === client.id)
-  const report = useMemo(() => buildOwnerReport(client, L.properties, leads, appts, prices, mandates), [client, L.properties, leads, appts, prices, mandates])
+  const report = useMemo(() => buildOwnerReport(client, L.properties, leads, appts, prices, mandates, new Date(), offers), [client, L.properties, leads, appts, prices, mandates, offers])
   const history = mandates.filter((m) => owned.some((p) => p.id === m.property_id) || m.owner_client_id === client.id).sort((a, b) => b.start_date.localeCompare(a.start_date))
   const link = client.share_token ? ownerLink(client.share_token) : null
   const phone = client.whatsapp || client.phone
@@ -628,6 +629,8 @@ export function OwnerFile({ client, onClose }: { client: Client; onClose: () => 
                             <span className="mt-1 block text-xs text-subtle">
                               معروض منذ {daysAr(daysOnMarket(p.created_at))} · مشاهدات {r.views} · طلبات {r.leads} · زيارات {r.visits_done}
                               {r.visits_planned ? ` + ${r.visits_planned} مبرمجة` : ''}
+                              {r.offers ? ` · عروض ${r.offers}، أعلاها ${fmtPrice(Math.max(...offers.filter((o) => o.property_id === p.id && o.status !== 'withdrawn').map((o) => o.amount)), 'ar', p.purpose === 'rent')}` : ''}
+                              {r.feedback && r.feedback.hot + r.feedback.warm + r.feedback.cold > 0 ? ` · مهتمون ${r.feedback.hot} من ${r.feedback.hot + r.feedback.warm + r.feedback.cold}، الثمن مرتفع عند ${r.feedback.price_high}` : ''}
                             </span>
                           )}
                         </span>

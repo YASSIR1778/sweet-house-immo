@@ -39,7 +39,7 @@ import { useTable } from '@/shared/lib/data'
 import { phoneKey, sameDay } from '@/shared/lib/format'
 import { I18nProvider } from '@/shared/lib/i18n'
 import { mandateState } from '@/shared/lib/owners'
-import type { Appointment, Broker, Client, Lead, Mandate, Permission, Property, Task } from '@/shared/lib/types'
+import type { Appointment, Broker, Client, Lead, Mandate, Offer, Permission, Property, Task } from '@/shared/lib/types'
 import { Badge, FullSpinner, cn } from '@/shared/ui/base'
 import { Logo } from '@/shared/ui/logo'
 import { Login, Pending, ResetPassword } from './auth-screens'
@@ -54,6 +54,7 @@ const Agenda = lazy(() => import('./pages/Agenda').then((m) => ({ default: m.Age
 const Brokers = lazy(() => import('./pages/Brokers').then((m) => ({ default: m.Brokers })))
 const Owners = lazy(() => import('./pages/Owners').then((m) => ({ default: m.Owners })))
 const Trash = lazy(() => import('./pages/Trash').then((m) => ({ default: m.Trash })))
+const Offers = lazy(() => import('./pages/Offers').then((m) => ({ default: m.Offers })))
 const Calculators = lazy(() => import('./pages/Calculators').then((m) => ({ default: m.Calculators })))
 const Calls = lazy(() => import('./pages/Calls').then((m) => ({ default: m.Calls })))
 const Clients = lazy(() => import('./pages/Clients').then((m) => ({ default: m.Clients })))
@@ -170,6 +171,8 @@ function Shell() {
   const { data: tasks = [] } = useTable<Task>('tasks')
   const { data: appts = [] } = useTable<Appointment>('appointments')
   const { data: mandates = [] } = useTable<Mandate>('mandates')
+  const { data: offers = [] } = useTable<Offer>('offers')
+  const openOffers = offers.filter((o) => o.status === 'pending' || o.status === 'countered').length
 
   const newLeads = leads.filter((l) => l.status === 'new').length
   const mandatesDue = mandates.filter((m) => {
@@ -208,6 +211,7 @@ function Shell() {
         ...(reports ? [{ to: '/admin', label: 'لوحة القيادة', icon: LayoutDashboard, end: true }] : []),
         { to: reports ? '/admin/desk' : '/admin', label: reports ? 'المكتب اليومي' : 'مكتبي', icon: Headset, end: !reports, badge: todayAppts, tone: 'teal' },
         { to: '/admin/leads', label: 'الطلبات', icon: Inbox, badge: newLeads, tone: 'gold' },
+        { to: '/admin/offers', label: 'العروض والتفاوض', icon: HandCoins, badge: openOffers, tone: 'teal' },
         { to: '/admin/agenda', label: 'المواعيد', icon: CalendarDays },
         { to: '/admin/tasks', label: 'المهام', icon: ListTodo, badge: myOverdue, tone: 'danger' },
         { to: '/admin/calls', label: 'سجل المكالمات', icon: PhoneCall },
@@ -243,6 +247,7 @@ function Shell() {
     { label: 'تسجيل مكالمة', icon: <PhoneIncoming className="size-4" />, onClick: () => quick('call') },
     { label: 'عميل جديد', icon: <UserPlus className="size-4" />, onClick: () => quick('client') },
     { label: 'مهمة', icon: <ClipboardPlus className="size-4" />, onClick: () => quick('task') },
+    { label: 'عرض شراء أو كراء', icon: <HandCoins className="size-4" />, onClick: () => quick('offer') },
     { label: 'شريك في الشبكة', icon: <Handshake className="size-4" />, onClick: () => quick('broker') },
     { label: 'تسجيل صفقة', icon: <BadgeDollarSign className="size-4" />, onClick: () => quick('deal'), hidden: !can('deals') },
   ]
@@ -333,6 +338,7 @@ function Shell() {
             <Route path="clients" element={<Clients />} />
             <Route path="brokers" element={<Brokers />} />
             <Route path="owners" element={<Owners />} />
+            <Route path="offers" element={<Offers />} />
             <Route path="trash" element={<Allowed perm="delete"><Trash /></Allowed>} />
             <Route path="calculators" element={<Calculators />} />
             <Route path="agenda" element={<Agenda />} />

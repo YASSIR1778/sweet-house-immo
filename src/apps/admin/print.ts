@@ -222,6 +222,14 @@ export function printMandate(m: Mandate, p: Property, owner: Client | undefined,
   openPrint(`${rent ? 'Mandat de location' : 'Mandat de vente'} ${p.ref}`, body)
 }
 
+/** «مهتمون 1 من 3 · الثمن مرتفع عند 2» */
+function opinion(f: OwnerReport['properties'][number]['feedback']): string {
+  if (!f) return '—'
+  const total = f.hot + f.warm + f.cold
+  const parts = [total ? `مهتمون <span class="num">${f.hot}</span> من <span class="num">${total}</span>` : '', f.price_high ? `الثمن مرتفع عند <span class="num">${f.price_high}</span>` : '']
+  return parts.filter(Boolean).join(' · ') || '—'
+}
+
 /** The owner's activity report, with a QR code to his private follow-up page. */
 export async function printOwnerReport(r: OwnerReport, ownerName: string, link: string | null, s: Settings) {
   const qr = link ? await QRCode.toDataURL(link, { margin: 1, width: 320, color: { dark: '#0b1b33', light: '#ffffff' } }) : null
@@ -229,13 +237,13 @@ export async function printOwnerReport(r: OwnerReport, ownerName: string, link: 
     .map((p) => {
       const first = p.prices[0]?.price
       const change = first && first !== p.price ? ` <small>(${p.price < first ? '-' : '+'}${Math.abs(Math.round(((p.price - first) / first) * 100))}%)</small>` : ''
-      return `<tr><td class="num"><b>${esc(p.ref)}</b></td><td>${esc(p.title)}<br><small style="color:#5b6475">${esc(PROPERTY_STATUS[p.status].label)}${p.mandate ? ` · ${esc(MANDATE_KIND[p.mandate.kind].label)}` : ''}</small></td><td class="num">${esc(fmtPrice(p.price, 'fr', p.purpose === 'rent'))}${change}</td><td class="num">${daysOnMarket(p.created_at)}</td><td class="num">${p.views}</td><td class="num">${p.leads}</td><td class="num">${p.visits_done}${p.visits_planned ? ` + ${p.visits_planned}` : ''}</td></tr>`
+      return `<tr><td class="num"><b>${esc(p.ref)}</b></td><td>${esc(p.title)}<br><small style="color:#5b6475">${esc(PROPERTY_STATUS[p.status].label)}${p.mandate ? ` · ${esc(MANDATE_KIND[p.mandate.kind].label)}` : ''}</small></td><td class="num">${esc(fmtPrice(p.price, 'fr', p.purpose === 'rent'))}${change}</td><td class="num">${daysOnMarket(p.created_at)}</td><td class="num">${p.views}</td><td class="num">${p.leads}</td><td class="num">${p.visits_done}${p.visits_planned ? ` + ${p.visits_planned}` : ''}</td><td class="num">${p.offers ?? 0}</td><td>${opinion(p.feedback)}</td></tr>`
     })
     .join('')
   const body = `${header(s)}
   <div class="vtitle"><h1>تقرير المالك · Rapport propriétaire</h1><div class="no">${esc(ownerName)} · ${esc(fmtDate(r.generated_at, 'fr'))}</div></div>
-  <table class="v" style="font-size:12px"><thead><tr><th style="width:auto">المرجع</th><th style="width:auto">العقار</th><th style="width:auto">الثمن</th><th style="width:auto">أيام العرض</th><th style="width:auto">المشاهدات</th><th style="width:auto">الطلبات</th><th style="width:auto">الزيارات</th></tr></thead><tbody>${rows || '<tr><td colspan="7">—</td></tr>'}</tbody></table>
-  <p style="font-size:11px;color:#5b6475">الزيارات: المنجزة + المبرمجة · Visites : effectuées + prévues</p>
+  <table class="v" style="font-size:12px"><thead><tr><th style="width:auto">المرجع</th><th style="width:auto">العقار</th><th style="width:auto">الثمن</th><th style="width:auto">أيام العرض</th><th style="width:auto">المشاهدات</th><th style="width:auto">الطلبات</th><th style="width:auto">الزيارات</th><th style="width:auto">العروض</th><th style="width:auto">رأي الزوار</th></tr></thead><tbody>${rows || '<tr><td colspan="9">—</td></tr>'}</tbody></table>
+  <p style="font-size:11px;color:#5b6475">الزيارات: المنجزة + المبرمجة · Visites : effectuées + prévues · رأي الزوار دون أسمائهم · Avis des visiteurs, anonymes</p>
   ${qr ? `<div class="foot"><img src="${qr}" alt="QR"><div class="t">امسح الرمز لمتابعة عقاركم مباشرة في أي وقت<br><span class="fr">Scannez pour suivre votre bien en direct</span></div></div>` : ''}`
   openPrint(`Rapport ${ownerName}`, body)
 }

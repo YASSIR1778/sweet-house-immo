@@ -443,6 +443,30 @@ alter table public.re_clients add column if not exists share_token uuid unique;
 alter table public.re_clients add column if not exists last_report_at timestamptz;
 
 -- ---------------------------------------------------------------------
+-- Offers from buyers / tenants, and what visitors thought of a visit
+-- ---------------------------------------------------------------------
+create table if not exists public.re_offers (
+  id uuid primary key default gen_random_uuid(),
+  property_id uuid not null references public.re_properties (id) on delete cascade,
+  client_id uuid references public.re_clients (id) on delete set null,
+  amount numeric not null check (amount >= 0),
+  financing text not null default 'cash' check (financing in ('cash', 'loan', 'mixed')),
+  conditions text,
+  status text not null default 'pending' check (status in ('pending', 'countered', 'accepted', 'rejected', 'withdrawn')),
+  counter_amount numeric check (counter_amount >= 0),
+  valid_until date,
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists re_offers_property_idx on public.re_offers (property_id);
+
+alter table public.re_appointments add column if not exists feedback_interest text check (feedback_interest in ('hot', 'warm', 'cold'));
+alter table public.re_appointments add column if not exists feedback_price text check (feedback_price in ('low', 'fair', 'high'));
+alter table public.re_appointments add column if not exists feedback_note text;
+
+-- ---------------------------------------------------------------------
 -- Trash: every deleted record is kept 30 days and can be restored
 -- ---------------------------------------------------------------------
 create table if not exists public.re_trash (
@@ -470,7 +494,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['re_properties', 're_clients', 're_leads', 're_appointments', 're_tasks', 're_calls', 're_deals', 're_brokers', 're_mandates', 're_documents'] loop
+  foreach t in array array['re_properties', 're_clients', 're_leads', 're_appointments', 're_tasks', 're_calls', 're_deals', 're_brokers', 're_mandates', 're_documents', 're_offers'] loop
     execute format('drop trigger if exists re_trash_%1$s on public.%1$s', t);
     execute format('create trigger re_trash_%1$s before delete on public.%1$s for each row execute function public.re_to_trash()', t);
   end loop;
@@ -500,6 +524,8 @@ drop trigger if exists re_touch_brokers on public.re_brokers;
 create trigger re_touch_brokers before update on public.re_brokers for each row execute function public.re_touch();
 drop trigger if exists re_touch_mandates on public.re_mandates;
 create trigger re_touch_mandates before update on public.re_mandates for each row execute function public.re_touch();
+drop trigger if exists re_touch_offers on public.re_offers;
+create trigger re_touch_offers before update on public.re_offers for each row execute function public.re_touch();
 
 -- ---------------------------------------------------------------------
 -- Anti-spam: at most 3 website requests per phone number every 10 minutes
@@ -575,7 +601,16 @@ begin
       'visits_planned', (select count(*) from public.re_appointments a where a.property_id = p.id and a.kind = 'visit' and a.status = 'scheduled' and a.starts_at > now()),
       'last_visit', (select max(a.starts_at) from public.re_appointments a where a.property_id = p.id and a.kind = 'visit' and a.status = 'done'),
       'prices', (select coalesce(jsonb_agg(jsonb_build_object('price', h.new_price, 'at', h.created_at) order by h.created_at), '[]'::jsonb) from public.re_price_history h where h.property_id = p.id),
-      'mandate', (select jsonb_build_object('kind', m.kind, 'start_date', m.start_date, 'end_date', m.end_date) from public.re_mandates m where m.property_id = p.id and m.status = 'active' order by m.start_date desc limit 1)
+      'mandate', (select jsonb_build_object('kind', m.kind, 'start_date', m.start_date, 'end_date', m.end_date) from public.re_mandates m where m.property_id = p.id and m.status = 'active' order by m.start_date desc limit 1),
+      'offers', (select count(*) from public.re_offers o where o.property_id = p.id and o.status <> 'withdrawn'),
+      'feedback', (select jsonb_build_object(
+          'hot', count(*) filter (where a.feedback_interest = 'hot'),
+          'warm', count(*) filter (where a.feedback_interest = 'warm'),
+          'cold', count(*) filter (where a.feedback_interest = 'cold'),
+          'price_high', count(*) filter (where a.feedback_price = 'high'),
+          'price_fair', count(*) filter (where a.feedback_price = 'fair'),
+          'price_low', count(*) filter (where a.feedback_price = 'low'))
+        from public.re_appointments a where a.property_id = p.id and a.kind = 'visit' and a.status = 'done')
     ) order by p.created_at desc), '[]'::jsonb)
   into v_props
   from public.re_properties p
@@ -615,6 +650,17 @@ alter table public.re_mandates enable row level security;
 alter table public.re_documents enable row level security;
 alter table public.re_price_history enable row level security;
 alter table public.re_trash enable row level security;
+alter table public.re_offers enable row level security;
+
+-- offers: every member reads, records and updates them; deleting needs «delete»
+drop policy if exists re_offers_select on public.re_offers;
+create policy re_offers_select on public.re_offers for select to authenticated using ((select public.re_is_staff()));
+drop policy if exists re_offers_insert on public.re_offers;
+create policy re_offers_insert on public.re_offers for insert to authenticated with check ((select public.re_is_staff()));
+drop policy if exists re_offers_update on public.re_offers;
+create policy re_offers_update on public.re_offers for update to authenticated using ((select public.re_is_staff())) with check ((select public.re_is_staff()));
+drop policy if exists re_offers_delete on public.re_offers;
+create policy re_offers_delete on public.re_offers for delete to authenticated using ((select public.re_can('delete')));
 
 -- trash: seen, restored and emptied by members with the «delete» permission; filled only by the trigger
 drop policy if exists re_trash_select on public.re_trash;

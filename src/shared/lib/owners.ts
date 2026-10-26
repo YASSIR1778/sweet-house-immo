@@ -1,4 +1,4 @@
-import type { Lang, Mandate, OwnerReport, Purpose } from './types'
+import type { Financing, Lang, Mandate, OwnerReport, Purpose, VisitFeedback } from './types'
 
 /*
  * Owners: mandate status, commission agreed with the owner, days on the market and the
@@ -41,27 +41,33 @@ export function daysOnMarket(createdAt: string, today: Date = new Date()): numbe
   return Math.max(0, Math.floor((today.getTime() - new Date(createdAt).getTime()) / DAY))
 }
 
-const T: Record<Lang, { hello: string; line: string; planned: string; link: string; bye: string; none: string }> = {
+const T: Record<Lang, { hello: string; line: string; planned: string; offers: string; feedback: string; link: string; bye: string; none: string }> = {
   ar: {
     hello: 'السلام عليكم {name}، هذا تقرير عقاركم لدى {agency}:',
-    line: '• {ref} {title}: المشاهدات على الموقع {views}، الطلبات {leads}، الزيارات المنجزة {done}{planned}. الثمن الحالي {price}.',
+    line: '• {ref} {title}: المشاهدات على الموقع {views}، الطلبات {leads}، الزيارات المنجزة {done}{planned}{offers}. الثمن الحالي {price}.',
     planned: '، والزيارات المبرمجة {n}',
+    offers: '، والعروض المتوصل بها {n}',
+    feedback: '  رأي الزوار: مهتمون {hot} من {total}، ويرى {high} منهم أن الثمن مرتفع.',
     link: 'تابعوا كل جديد مباشرة من هنا: {link}',
     bye: 'مع تحيات فريق {agency}',
     none: 'لا يوجد عقار مسجل باسمكم حالياً.',
   },
   fr: {
     hello: 'Bonjour {name}, voici le point sur votre bien avec {agency} :',
-    line: '• {ref} {title} : vues sur le site {views}, demandes {leads}, visites effectuées {done}{planned}. Prix actuel : {price}.',
+    line: '• {ref} {title} : vues sur le site {views}, demandes {leads}, visites effectuées {done}{planned}{offers}. Prix actuel : {price}.',
     planned: ', visites prévues {n}',
+    offers: ', offres reçues {n}',
+    feedback: '  Avis des visiteurs : intéressés {hot} sur {total}, prix jugé élevé par {high}.',
     link: 'Suivez tout en direct ici : {link}',
     bye: 'Cordialement, l’équipe {agency}',
     none: 'Aucun bien n’est enregistré à votre nom pour le moment.',
   },
   es: {
     hello: 'Hola {name}, este es el informe de su inmueble con {agency}:',
-    line: '• {ref} {title}: visitas en la web {views}, solicitudes {leads}, visitas realizadas {done}{planned}. Precio actual: {price}.',
+    line: '• {ref} {title}: visitas en la web {views}, solicitudes {leads}, visitas realizadas {done}{planned}{offers}. Precio actual: {price}.',
     planned: ', visitas previstas {n}',
+    offers: ', ofertas recibidas {n}',
+    feedback: '  Opinión de los visitantes: interesados {hot} de {total}, precio alto según {high}.',
     link: 'Siga todo en directo aquí: {link}',
     bye: 'Saludos, el equipo de {agency}',
     none: 'No hay ningún inmueble a su nombre por ahora.',
@@ -73,17 +79,21 @@ const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w
 /** WhatsApp message to the owner, in his language. */
 export function ownerReportText(r: OwnerReport, agency: string, link: string | null, price: (n: number) => string): string {
   const t = T[r.lang] ?? T.ar
-  const lines = r.properties.map((p) =>
-    fill(t.line, {
+  const lines = r.properties.flatMap((p) => {
+    const line = fill(t.line, {
       ref: p.ref,
       title: p.title,
       views: p.views,
       leads: p.leads,
       done: p.visits_done,
       planned: p.visits_planned ? fill(t.planned, { n: p.visits_planned }) : '',
+      offers: p.offers ? fill(t.offers, { n: p.offers }) : '',
       price: price(p.price),
-    }),
-  )
+    })
+    const f = p.feedback
+    const total = f ? f.hot + f.warm + f.cold : 0
+    return total ? [line, fill(t.feedback, { hot: f!.hot, total, high: f!.price_high })] : [line]
+  })
   return [fill(t.hello, { name: r.name, agency }), ...(lines.length ? lines : [t.none]), ...(link ? [fill(t.link, { link })] : []), fill(t.bye, { agency })].join('\n')
 }
 
@@ -116,6 +126,7 @@ export function buildOwnerReport(
   prices: { property_id: string; new_price: number; created_at: string }[],
   mandates: Pick<Mandate, 'property_id' | 'status' | 'kind' | 'start_date' | 'end_date'>[],
   now: Date = new Date(),
+  offers: { property_id: string; status: string }[] = [],
 ): OwnerReport {
   const nowIso = now.toISOString()
   return {
@@ -127,8 +138,13 @@ export function buildOwnerReport(
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
       .map((p) => {
         const visits = appointments.filter((a) => a.property_id === p.id && a.kind === 'visit')
-        const done = visits.filter((a) => a.status === 'done')
+        const done = visits.filter((a) => a.status === 'done') as (typeof visits[number] & { feedback_interest?: string | null; feedback_price?: string | null })[]
         const m = currentMandate(mandates, p.id)
+        const fb: VisitFeedback = { hot: 0, warm: 0, cold: 0, price_high: 0, price_fair: 0, price_low: 0 }
+        for (const a of done) {
+          if (a.feedback_interest === 'hot' || a.feedback_interest === 'warm' || a.feedback_interest === 'cold') fb[a.feedback_interest]++
+          if (a.feedback_price === 'high' || a.feedback_price === 'fair' || a.feedback_price === 'low') fb[`price_${a.feedback_price}`]++
+        }
         return {
           ref: p.ref,
           title: p.title,
@@ -149,7 +165,29 @@ export function buildOwnerReport(
             .sort((a, b) => a.created_at.localeCompare(b.created_at))
             .map((h) => ({ price: h.new_price, at: h.created_at })),
           mandate: m ? { kind: m.kind, start_date: m.start_date, end_date: m.end_date } : null,
+          offers: offers.filter((o) => o.property_id === p.id && o.status !== 'withdrawn').length,
+          feedback: fb,
         }
       }),
   }
+}
+
+const FIN: Record<Lang, Record<Financing, string>> = {
+  ar: { cash: 'نقداً', loan: 'بقرض بنكي', mixed: 'جزء نقداً وجزء بقرض' },
+  fr: { cash: 'comptant', loan: 'par crédit bancaire', mixed: 'en partie comptant, en partie à crédit' },
+  es: { cash: 'al contado', loan: 'con préstamo bancario', mixed: 'parte al contado y parte con préstamo' },
+}
+
+const OFFER: Record<Lang, string> = {
+  ar: 'السلام عليكم {name}، توصلنا بعرض جديد على عقاركم {ref}: {amount}، أي {pct}% من الثمن المعروض {price}. طريقة الأداء: {fin}.{cond} ننتظر رأيكم.\nفريق {agency}',
+  fr: 'Bonjour {name}, nous avons reçu une nouvelle offre pour votre bien {ref} : {amount}, soit {pct} % du prix demandé ({price}). Paiement : {fin}.{cond} Qu’en pensez-vous ?\nL’équipe {agency}',
+  es: 'Hola {name}, hemos recibido una nueva oferta por su inmueble {ref}: {amount}, es decir el {pct} % del precio pedido ({price}). Pago: {fin}.{cond} ¿Qué le parece?\nEl equipo de {agency}',
+}
+
+/** WhatsApp message telling the owner about an offer, in his language. */
+export function offerMessage(o: { amount: number; financing: Financing; conditions: string | null }, p: { ref: string; price: number }, owner: { full_name: string; lang: Lang }, agency: string, price: (n: number) => string): string {
+  const lang = OFFER[owner.lang] ? owner.lang : 'ar'
+  const pct = p.price ? Math.round((o.amount / p.price) * 1000) / 10 : 0
+  const cond = o.conditions?.trim() ? ` ${o.conditions.trim().replace(/[.。]?$/, '.')}` : ''
+  return fill(OFFER[lang], { name: owner.full_name.split(' ')[0], ref: p.ref, amount: price(o.amount), pct, price: price(p.price), fin: FIN[lang][o.financing], cond, agency })
 }

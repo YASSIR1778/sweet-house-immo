@@ -1,5 +1,5 @@
 import { Plus, Sparkles, Star, Trash2, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { agencyNet, defaultCommission, shareAmount, shareFromBroker, sharesTotal, suggestShares } from '@/shared/lib/commission'
 import { useNetwork, useSettings, useTable } from '@/shared/lib/data'
@@ -271,6 +271,11 @@ export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
     const x = L.property(id)
     reprice({ property_id: id, kind: x?.purpose ?? f.kind, amount: x?.price ?? f.amount })
   }
+  // opened with a price (an accepted offer): start from the usual commission
+  useEffect(() => {
+    if (isNew && initial.amount && initial.commission_seller == null && initial.commission_buyer == null) reprice({})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const updShare = (id: string, patch: Partial<DealShare>) => setF((x) => ({ ...x, shares: x.shares.map((s) => (s.id === id ? { ...s, ...patch } : s)) }))
   const addShare = (party: ShareParty) =>

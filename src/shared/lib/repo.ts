@@ -5,7 +5,7 @@ import { DEFAULT_FEES } from './fee-defaults'
 import { buildOwnerReport } from './owners'
 import type { Activity, Appointment, Client, FeeSettings, Lead, Mandate, OwnerReport, PriceChange, Property, SessionUser, Settings } from './types'
 
-export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers' | 'mandates' | 'documents' | 'price_history' | 'trash'
+export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers' | 'mandates' | 'documents' | 'price_history' | 'trash' | 'offers'
 
 export const TABLE: Record<TableName, string> = {
   properties: 're_properties',
@@ -22,10 +22,11 @@ export const TABLE: Record<TableName, string> = {
   documents: 're_documents',
   price_history: 're_price_history',
   trash: 're_trash',
+  offers: 're_offers',
 }
 
 /** Demo: deleted rows of these tables are kept in the local trash, like the database trigger does. */
-const LOCAL_TRASH: TableName[] = ['properties', 'clients', 'leads', 'appointments', 'tasks', 'calls', 'deals', 'brokers', 'mandates', 'documents']
+const LOCAL_TRASH: TableName[] = ['properties', 'clients', 'leads', 'appointments', 'tasks', 'calls', 'deals', 'brokers', 'mandates', 'documents', 'offers']
 
 export const DOCS_BUCKET = 'property-docs'
 
@@ -96,6 +97,9 @@ function stripPrivate(p: Property): Property {
 /* ------------------------------------------------------------------ */
 /* Demo mode: everything in localStorage, seeded with sample data        */
 /* ------------------------------------------------------------------ */
+/** Raise when the demo gains a table, so browsers seeded before receive its sample rows. */
+const SEED_VERSION = '2'
+
 class LocalRepo implements Repo {
   mode = 'demo' as const
   private ready: Promise<void>
@@ -124,11 +128,13 @@ class LocalRepo implements Repo {
   }
   private async ensureSeed() {
     try {
-      if (localStorage.getItem('shi:seeded')) return
+      const seeded = localStorage.getItem('shi:seeded')
+      if (seeded === SEED_VERSION) return
       const { seedData } = await import('./seed')
       const s = seedData()
-      for (const [t, rows] of Object.entries(s)) this.write(t, rows as unknown[])
-      localStorage.setItem('shi:seeded', '1')
+      // a browser seeded by an older version keeps its data and only receives the new tables
+      for (const [t, rows] of Object.entries(s)) if (!seeded || localStorage.getItem(this.key(t)) === null) this.write(t, rows as unknown[])
+      localStorage.setItem('shi:seeded', SEED_VERSION)
     } catch {
       /* private browsing: run without persistence */
     }
@@ -267,7 +273,7 @@ class LocalRepo implements Repo {
     await this.ready
     const client = this.read<Client>('clients').find((c) => c.share_token && c.share_token === token)
     if (!client) return null
-    return buildOwnerReport(client, this.read<Property>('properties'), this.read<Lead>('leads'), this.read<Appointment>('appointments'), this.read<PriceChange>('price_history'), this.read<Mandate>('mandates'))
+    return buildOwnerReport(client, this.read<Property>('properties'), this.read<Lead>('leads'), this.read<Appointment>('appointments'), this.read<PriceChange>('price_history'), this.read<Mandate>('mandates'), new Date(), this.read<{ property_id: string; status: string }>('offers'))
   }
 }
 

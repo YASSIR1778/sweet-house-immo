@@ -8,6 +8,7 @@ import { Button, ButtonLink, Drawer, Segmented, cn } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useQuickAdd } from '../dialogs'
 import { BulkBar, CheckAll, CheckCell, bulkBtn, useBulkDelete, useSelection } from '../bulk'
+import { OffersCard } from '../offers'
 import { useCan, useDeleteRow, useLookups, useNames } from '../hooks'
 import { APPT_KIND, APPT_STATUS, CLIENT_KIND, LEAD_STATUS, PURPOSE, SOURCE } from '../labels'
 import { matchesMessage, propertyMessage } from '../templates'
@@ -264,6 +265,8 @@ function ClientDrawer({ client: c, onClose, matches }: { client: Client; onClose
             المصدر: <b style={{ color: SOURCE[c.source].color }}>{SOURCE[c.source].label}</b> · منذ {fmtDate(c.created_at)}
           </span>
         </div>
+
+        {c.kind !== 'owner' && <OffersCard clientId={c.id} title="عروضه" />}
 
         {c.kind !== 'owner' && (
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">

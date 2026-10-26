@@ -1,4 +1,4 @@
-import { AlarmClock, Building, CalendarPlus, Check, ClipboardPlus, Copy, FolderLock, Inbox, PhoneIncoming, PhoneOutgoing, Printer, Search, UserPlus, UserX } from 'lucide-react'
+import { AlarmClock, Building, CalendarPlus, Check, ClipboardPlus, Copy, FolderLock, HandCoins, Inbox, PhoneIncoming, PhoneOutgoing, Printer, Search, UserPlus, UserX } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
@@ -6,7 +6,7 @@ import { SITE_URL } from '@/shared/lib/config'
 import { useTable } from '@/shared/lib/data'
 import { addDays, fmtDate, fmtPrice, fmtRelative, fmtTime, nowIso, sameDay, waLink } from '@/shared/lib/format'
 import { mandateState } from '@/shared/lib/owners'
-import type { Appointment, CallLog, Lead, Mandate, Property, Task } from '@/shared/lib/types'
+import type { Appointment, CallLog, Lead, Mandate, Offer, Property, Task } from '@/shared/lib/types'
 import { cn } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useQuickAdd } from '../dialogs'
@@ -37,6 +37,8 @@ export function Desk() {
   const { data: tasks = [] } = useTable<Task>('tasks')
   const { data: calls = [] } = useTable<CallLog>('calls')
   const { data: mandates = [] } = useTable<Mandate>('mandates')
+  const { data: offers = [] } = useTable<Offer>('offers')
+  const openOffers = offers.filter((o) => o.status === 'pending' || o.status === 'countered').sort((a, b) => a.updated_at.localeCompare(b.updated_at))
   const mandatesDue = mandates
     .map((m) => ({ m, ...mandateState(m) }))
     .filter((x) => x.state === 'expiring' || x.state === 'expired')
@@ -244,6 +246,29 @@ export function Desk() {
             )}
             {find && found.length === 0 && <p className="mt-3 text-center text-sm text-muted">لا توجد نتائج</p>}
           </Card>
+
+          {openOffers.length > 0 && (
+            <Card title={`عروض تنتظر الرد (${openOffers.length})`} icon={<HandCoins className="size-4" />} action={<Link to="/admin/offers" className="text-xs font-semibold text-teal hover:underline">كل العروض</Link>} bodyClass="p-0">
+              <ul className="divide-y divide-line">
+                {openOffers.slice(0, 5).map((o) => {
+                  const p = L.property(o.property_id)
+                  return (
+                    <li key={o.id}>
+                      <button type="button" onClick={() => quick('offer', o)} className="flex w-full items-center gap-3 px-5 py-3 text-start hover:bg-ivory">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-navy">
+                            <span className="num text-gold-700">{p?.ref ?? '—'}</span> {L.client(o.client_id)?.full_name ?? ''}
+                          </span>
+                          <span className="num text-xs text-muted">{fmtPrice(o.amount, 'ar', p?.purpose === 'rent')}</span>
+                        </span>
+                        <span className={cn('text-xs font-semibold', o.status === 'countered' ? 'text-warning' : 'text-info')}>{o.status === 'countered' ? 'عرض مضاد' : 'قيد الدراسة'}</span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </Card>
+          )}
 
           {mandatesDue.length > 0 && (
             <Card title={`تفويضات تحتاج تجديداً (${mandatesDue.length})`} icon={<FolderLock className="size-4" />} action={<Link to="/admin/owners" className="text-xs font-semibold text-teal hover:underline">ملفات الملاك</Link>} bodyClass="p-0">

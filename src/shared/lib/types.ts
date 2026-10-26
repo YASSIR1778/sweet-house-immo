@@ -128,6 +128,41 @@ export interface Appointment {
   notes: string | null
   created_by: string | null
   created_at: string
+  /** what the visitor thought, recorded after a visit */
+  feedback_interest?: Interest | null
+  feedback_price?: PriceOpinion | null
+  feedback_note?: string | null
+}
+
+export type Interest = 'hot' | 'warm' | 'cold'
+export type PriceOpinion = 'low' | 'fair' | 'high'
+
+export type OfferStatus = 'pending' | 'countered' | 'accepted' | 'rejected' | 'withdrawn'
+export type Financing = 'cash' | 'loan' | 'mixed'
+/** An offer made by a buyer (or tenant) on a property. */
+export interface Offer {
+  id: string
+  property_id: string
+  client_id: string | null
+  amount: number
+  financing: Financing
+  conditions: string | null
+  status: OfferStatus
+  counter_amount: number | null
+  valid_until: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface VisitFeedback {
+  hot: number
+  warm: number
+  cold: number
+  price_high: number
+  price_fair: number
+  price_low: number
 }
 
 export type TaskPriority = 'low' | 'normal' | 'high'
@@ -266,6 +301,9 @@ export interface OwnerReport {
     last_visit: string | null
     prices: { price: number; at: string }[]
     mandate: { kind: MandateKind; start_date: string; end_date: string | null } | null
+    /** offers received (not withdrawn) */
+    offers?: number
+    feedback?: VisitFeedback | null
   }[]
 }
 

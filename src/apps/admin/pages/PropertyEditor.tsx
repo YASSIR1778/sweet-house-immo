@@ -14,6 +14,7 @@ import { WhatsAppIcon } from '@/shared/ui/icons'
 import { LocationPicker } from '@/shared/ui/map'
 import { useClientOptions } from '../dialogs'
 import { useBrokerOptions } from '../network-dialogs'
+import { OffersCard } from '../offers'
 import { DocumentsPanel, MandateDialog, MandatePill, PriceHistory, renewalOf } from '../owners'
 import { errorText, nextRef, useCan, useDeleteRow, useLookups, useMe, useNames, useSave } from '../hooks'
 import { PROPERTY_STATUS } from '../labels'
@@ -225,6 +226,14 @@ export function PropertyEditor() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNew, isLoading, existing?.id])
+
+  // saved elsewhere while the page is open (an accepted offer reserves it, a deal sells it): keep the form in step
+  useEffect(() => {
+    if (!existing || !f || f.id !== existing.id || existing.updated_at === f.updated_at) return
+    if (!dirty) setF(existing)
+    else setF((x) => (x ? { ...x, status: existing.status, published: existing.published, updated_at: existing.updated_at } : x))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existing?.updated_at])
 
   useEffect(() => {
     if (!dirty) return
@@ -586,6 +595,7 @@ export function PropertyEditor() {
               </div>
             </Card>
 
+            {!isNew && <OffersCard propertyId={f.id} />}
             {!isNew && <DocumentsPanel propertyId={f.id} clientId={f.owner_client_id} title="وثائق العقار" />}
             {!isNew && <PriceHistory propertyId={f.id} rent={f.purpose === 'rent'} />}
 

@@ -4,12 +4,13 @@ import { toast } from 'sonner'
 import { PROPERTY_TYPES } from '@/shared/lib/config'
 import { useTable } from '@/shared/lib/data'
 import { addDays, combineDateTime, fmtPrice, localDate, localTime, nowIso, startOfDay, uid, waLink } from '@/shared/lib/format'
-import type { Appointment, AppointmentKind, AppointmentStatus, Broker, CallLog, Client, ClientKind, Deal, Lang, Lead, LeadKind, LeadSource, PropertyType, Purpose, Task, TaskPriority } from '@/shared/lib/types'
+import type { Appointment, AppointmentKind, AppointmentStatus, Broker, CallLog, Client, ClientKind, Deal, Interest, Lang, Lead, LeadKind, LeadSource, Offer, PriceOpinion, PropertyType, Purpose, Task, TaskPriority } from '@/shared/lib/types'
 import { Button, Field, Input, Modal, Segmented, Select, Switch, Textarea } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useDeleteRow, useLookups, useMe, useNames, useSave } from './hooks'
-import { APPT_KIND, APPT_STATUS, CLIENT_KIND, LANG_LABEL, LEAD_KIND, PRIORITY, PURPOSE, SOURCE } from './labels'
+import { APPT_KIND, APPT_STATUS, CLIENT_KIND, INTEREST, LANG_LABEL, LEAD_KIND, PRICE_OPINION, PRIORITY, PURPOSE, SOURCE } from './labels'
 import { BrokerDialog, DealDialog, useBrokerOptions } from './network-dialogs'
+import { OfferDialog } from './offers'
 import { printVisitVoucher } from './print'
 import { visitReminder } from './templates'
 import { Chips, Combo, type ComboOption } from './ui'
@@ -65,7 +66,7 @@ export function StaffSelect({ value, onChange, allowEmpty = true }: { value: str
 /* ------------------------------------------------------------------ */
 /* Quick-add provider: any page can open any form                       */
 /* ------------------------------------------------------------------ */
-export type QuickKind = 'appointment' | 'call' | 'client' | 'task' | 'deal' | 'lead' | 'broker'
+export type QuickKind = 'appointment' | 'call' | 'client' | 'task' | 'deal' | 'lead' | 'broker' | 'offer'
 interface InitialMap {
   appointment: Partial<Appointment>
   call: Partial<CallLog>
@@ -74,6 +75,7 @@ interface InitialMap {
   deal: Partial<Deal>
   lead: Partial<Lead>
   broker: Partial<Broker>
+  offer: Partial<Offer>
 }
 type Opener = <K extends QuickKind>(kind: K, initial?: InitialMap[K], onSaved?: (row: unknown) => void) => void
 
@@ -94,6 +96,7 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
       {req?.kind === 'deal' && <DealDialog key={req.key} initial={req.initial as Partial<Deal>} onClose={close} onSaved={saved} />}
       {req?.kind === 'lead' && <LeadDialog key={req.key} initial={req.initial as Partial<Lead>} onClose={close} onSaved={saved} />}
       {req?.kind === 'broker' && <BrokerDialog key={req.key} initial={req.initial as Partial<Broker>} onClose={close} onSaved={saved} />}
+      {req?.kind === 'offer' && <OfferDialog key={req.key} initial={req.initial as Partial<Offer>} onClose={close} onSaved={saved} />}
     </QuickCtx.Provider>
   )
 }
@@ -142,6 +145,9 @@ export function AppointmentDialog({ initial = {}, onClose, onSaved }: { initial?
     assigned_to: (initial.assigned_to ?? me.id) as string | null,
     status: (initial.status ?? 'scheduled') as AppointmentStatus,
     notes: initial.notes ?? '',
+    feedback_interest: (initial.feedback_interest ?? null) as Interest | null,
+    feedback_price: (initial.feedback_price ?? null) as PriceOpinion | null,
+    feedback_note: initial.feedback_note ?? '',
   })
   const [titleTouched, setTitleTouched] = useState(Boolean(initial.title))
   const [newVisitor, setNewVisitor] = useState(false)
@@ -172,6 +178,9 @@ export function AppointmentDialog({ initial = {}, onClose, onSaved }: { initial?
     assigned_to: f.assigned_to,
     status: f.status,
     notes: f.notes.trim() || null,
+    feedback_interest: f.feedback_interest,
+    feedback_price: f.feedback_price,
+    feedback_note: f.feedback_note.trim() || null,
     created_by: initial.created_by ?? me.id,
     created_at: initial.created_at ?? nowIso(),
   })
@@ -343,6 +352,32 @@ export function AppointmentDialog({ initial = {}, onClose, onSaved }: { initial?
             </Field>
           )}
         </div>
+        {!isNew && f.kind === 'visit' && (f.status === 'done' || new Date(startIso) < new Date()) && (
+          <div className="space-y-3 rounded-2xl border border-teal/30 bg-teal/5 p-4">
+            <h3 className="text-sm font-bold text-navy">رأي الزائر بعد الزيارة</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="الاهتمام">
+                <Segmented
+                  value={f.feedback_interest ?? ('' as Interest)}
+                  onChange={(v) => setF((x) => ({ ...x, feedback_interest: v, status: x.status === 'scheduled' ? 'done' : x.status }))}
+                  options={(Object.keys(INTEREST) as Interest[]).map((k) => ({ value: k, label: INTEREST[k].label }))}
+                  className="flex w-full [&>button]:flex-1"
+                />
+              </Field>
+              <Field label="رأيه في الثمن">
+                <Segmented
+                  value={f.feedback_price ?? ('' as PriceOpinion)}
+                  onChange={(v) => setF((x) => ({ ...x, feedback_price: v, status: x.status === 'scheduled' ? 'done' : x.status }))}
+                  options={(['low', 'fair', 'high'] as PriceOpinion[]).map((k) => ({ value: k, label: PRICE_OPINION[k].label }))}
+                  className="flex w-full [&>button]:flex-1"
+                />
+              </Field>
+            </div>
+            <Field label="ما قاله عن العقار" hint="يصل المالك ملخص الآراء فقط، دون اسم الزائر ولا كلامه.">
+              <Textarea rows={2} value={f.feedback_note} onChange={(e) => set('feedback_note', e.target.value)} />
+            </Field>
+          </div>
+        )}
         {!isNew && (
           <Field label="العنوان">
             <Input

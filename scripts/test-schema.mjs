@@ -271,6 +271,34 @@ await as(null, async () => {
 await db.query(`delete from re_appointments where title = 'زيارة' and kind = 'visit' and status = 'done' and property_id = $1 and client_id is null`, [P1])
 await db.query(`update re_properties set owner_client_id = null, price = 880000, title = 'شقة' where id = $1`, [P1])
 
+// ------------------------------------------------------------ offers and visitors' feedback
+const OWN2 = (await one(`insert into re_clients (full_name, phone, kind, share_token) values ('مالك العروض', '0600000066', 'owner', '22222222-3333-4444-5555-666666666666') returning id`)).id
+await db.query(`update re_properties set owner_client_id = $1 where id = $2`, [OWN2, P3])
+await as(SEC, async () => {
+  const o = (await one(`insert into re_offers (property_id, amount, financing, conditions) values ($1, 650000, 'loan', 'بشرط موافقة البنك') returning id, status`, [P3]))
+  ok('member records an offer', o?.status === 'pending')
+  const u = await db.query(`update re_offers set status = 'countered', counter_amount = 680000 where id = $1`, [o.id])
+  ok('member records a counter-offer', u.affectedRows === 1)
+  await fails('unknown offer status refused', () => db.query(`update re_offers set status = 'maybe' where id = $1`, [o.id]), /check constraint/)
+  const d = await db.query(`delete from re_offers where id = $1`, [o.id])
+  ok('member without «delete» cannot delete an offer', d.affectedRows === 0)
+  await db.query(`insert into re_appointments (title, kind, starts_at, ends_at, property_id, status, feedback_interest, feedback_price, feedback_note) values ('زيارة 1', 'visit', now() - interval '3 days', now() - interval '3 days' + interval '30 minutes', $1, 'done', 'hot', 'high', 'أعجبه الموقع')`, [P3])
+  await db.query(`insert into re_appointments (title, kind, starts_at, ends_at, property_id, status, feedback_interest, feedback_price) values ('زيارة 2', 'visit', now() - interval '2 days', now() - interval '2 days' + interval '30 minutes', $1, 'done', 'cold', 'high')`, [P3])
+  await fails('unknown feedback refused', () => db.query(`update re_appointments set feedback_price = 'cheap' where title = 'زيارة 1'`), /check constraint/)
+})
+await as(null, async () => {
+  ok('anon: offers hidden', (await count(`select count(*) n from re_offers`)) === 0)
+  const r = (await one(`select re_owner_report('22222222-3333-4444-5555-666666666666') r`)).r
+  const pr = r?.properties?.[0] ?? {}
+  ok('owner link: offers count and visitors feedback', pr.offers === 1 && pr.feedback?.hot === 1 && pr.feedback?.cold === 1 && pr.feedback?.price_high === 2, JSON.stringify(pr.feedback))
+  ok('owner link: no offer amounts or visitor notes', !JSON.stringify(r).match(/650000|680000|أعجبه|بشرط/))
+})
+await db.query(`delete from re_appointments where title in ('زيارة 1', 'زيارة 2')`)
+await db.query(`delete from re_offers`)
+await db.query(`update re_properties set owner_client_id = null where id = $1`, [P3])
+await db.query(`delete from re_clients where id = $1`, [OWN2])
+await db.query(`delete from re_trash`)
+
 // ------------------------------------------------------------ trash
 await as(OWNER, async () => {
   const c = (await one(`insert into re_clients (full_name, phone) values ('للسلة', '0600000077') returning id`)).id
