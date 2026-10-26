@@ -31,6 +31,7 @@ import {
   Handshake,
   Landmark,
   Wallet,
+  Key,
   type LucideIcon,
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -42,7 +43,8 @@ import { isOverdue } from '@/shared/lib/billing'
 import { localDate, phoneKey, sameDay } from '@/shared/lib/format'
 import { I18nProvider } from '@/shared/lib/i18n'
 import { mandateState } from '@/shared/lib/owners'
-import type { Appointment, Broker, Client, Invoice, Lead, Mandate, Offer, Permission, Property, Task } from '@/shared/lib/types'
+import { leaseArrears } from '@/shared/lib/rentals'
+import type { Appointment, Broker, Client, Invoice, Lead, Lease, Mandate, Offer, Permission, Property, RentPayment, Task } from '@/shared/lib/types'
 import { Badge, FullSpinner, cn } from '@/shared/ui/base'
 import { Logo } from '@/shared/ui/logo'
 import { Login, Pending, ResetPassword } from './auth-screens'
@@ -60,6 +62,8 @@ const Trash = lazy(() => import('./pages/Trash').then((m) => ({ default: m.Trash
 const Offers = lazy(() => import('./pages/Offers').then((m) => ({ default: m.Offers })))
 const DealFile = lazy(() => import('./pages/DealFile').then((m) => ({ default: m.DealFile })))
 const Finance = lazy(() => import('./pages/Finance').then((m) => ({ default: m.Finance })))
+const Rentals = lazy(() => import('./pages/Rentals').then((m) => ({ default: m.Rentals })))
+const LeaseFile = lazy(() => import('./pages/LeaseFile').then((m) => ({ default: m.LeaseFile })))
 const Calculators = lazy(() => import('./pages/Calculators').then((m) => ({ default: m.Calculators })))
 const Calls = lazy(() => import('./pages/Calls').then((m) => ({ default: m.Calls })))
 const Clients = lazy(() => import('./pages/Clients').then((m) => ({ default: m.Clients })))
@@ -180,6 +184,9 @@ function Shell() {
   const openOffers = offers.filter((o) => o.status === 'pending' || o.status === 'countered').length
   const { data: invoices = [] } = useTable<Invoice>('invoices', { enabled: can('deals') })
   const overdueInvoices = invoices.filter((i) => isOverdue(i, localDate(new Date()))).length
+  const { data: leases = [] } = useTable<Lease>('leases')
+  const { data: rents = [] } = useTable<RentPayment>('rent_payments')
+  const lateRents = leases.filter((l) => l.managed && l.status === 'active' && leaseArrears(l, rents).months > 0).length
 
   const newLeads = leads.filter((l) => l.status === 'new').length
   const mandatesDue = mandates.filter((m) => {
@@ -230,6 +237,7 @@ function Shell() {
         { to: '/admin/properties', label: 'العقارات', icon: Building2 },
         { to: '/admin/clients', label: 'العملاء', icon: Users },
         { to: '/admin/owners', label: 'ملفات الملاك', icon: FolderLock, badge: mandatesDue, tone: 'gold' },
+        { to: '/admin/rentals', label: 'الكراء والتسيير', icon: Key, badge: lateRents, tone: 'danger' },
         { to: '/admin/brokers', label: 'الوسطاء والشركاء', icon: Handshake },
         { to: '/admin/calculators', label: 'حاسبة المصاريف', icon: Calculator },
       ],
@@ -259,6 +267,7 @@ function Shell() {
     { label: 'شريك في الشبكة', icon: <Handshake className="size-4" />, onClick: () => quick('broker') },
     { label: 'صفقة جديدة', icon: <BadgeDollarSign className="size-4" />, onClick: () => quick('deal', { stage: 'agreement' }), hidden: !can('deals') },
     { label: 'مصروف', icon: <Wallet className="size-4" />, onClick: () => quick('expense'), hidden: !can('deals') },
+    { label: 'عقد كراء', icon: <Key className="size-4" />, onClick: () => quick('lease', {}, (row) => nav(`/admin/rentals/${(row as Lease).id}`)) },
   ]
 
   const sidebar = (
@@ -356,6 +365,8 @@ function Shell() {
             <Route path="deals" element={<Allowed perm="deals"><Deals /></Allowed>} />
             <Route path="deals/:id" element={<Allowed perm="deals"><DealFile /></Allowed>} />
             <Route path="finance" element={<Allowed perm="deals"><Finance /></Allowed>} />
+            <Route path="rentals" element={<Rentals />} />
+            <Route path="rentals/:id" element={<LeaseFile />} />
             <Route path="team" element={<Allowed><Team /></Allowed>} />
             <Route path="activity" element={<Allowed perm="activity"><Activity /></Allowed>} />
             <Route path="settings" element={<Allowed perm="settings"><Settings /></Allowed>} />

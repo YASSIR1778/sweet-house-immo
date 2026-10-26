@@ -1,4 +1,5 @@
-import type { AgreementMode, AppointmentKind, AppointmentStatus, BillParty, BrokerKind, ClientKind, DealStage, DocKind, ExpenseCategory, Financing, Interest, InvoiceStatus, KeysHolder, LeadKind, LeadSource, LeadStatus, MandateKind, OfferStatus, PayMethod, PriceOpinion, PropertyStatus, Purpose, Role, ShareParty, ShareSide, TaskPriority} from '@/shared/lib/types'
+import type { AgreementMode, AppointmentKind, AppointmentStatus, BillParty, BrokerKind, ClientKind, DealStage, DocKind, ExpenseCategory, Financing, Interest, InvoiceStatus, KeysHolder, LeadKind, LeadSource, LeadStatus, LeaseStatus, LeaseUsage, MandateKind, OfferStatus, PayMethod, PriceOpinion, PropertyStatus, Purpose, Role, ShareParty, ShareSide, TaskPriority} from '@/shared/lib/types'
+import type { RentStatus } from '@/shared/lib/rentals'
 
 export interface Lbl {
   label: string
@@ -192,6 +193,8 @@ export const ENTITY: Record<string, string> = {
   invoice: 'فاتورة',
   payment: 'وصل',
   expense: 'مصروف',
+  lease: 'عقد كراء',
+  rent: 'أداء كراء',
   billing: 'معلومات الفوترة',
   session: 'الجلسة',
 }
@@ -222,6 +225,23 @@ export const PAY_METHOD: Record<PayMethod, string> = {
 
 /** Who pays, in the words of the deal. */
 export const partyLabel = (p: BillParty, kind: Purpose) => (p === 'seller' ? (kind === 'rent' ? 'المالك' : 'البائع') : p === 'buyer' ? (kind === 'rent' ? 'المكتري' : 'المشتري') : 'آخر')
+
+/* ---------------------------------------------------------------- rentals */
+export const LEASE_STATUS: Record<LeaseStatus, Lbl> = {
+  active: { label: 'ساري', color: '#15803d' },
+  ended: { label: 'منتهٍ', color: '#64748b' },
+  cancelled: { label: 'ملغى', color: '#b91c1c' },
+}
+export const LEASE_USAGE: Record<LeaseUsage, string> = {
+  housing: 'للسكنى',
+  professional: 'للاستعمال المهني',
+}
+export const RENT_STATUS: Record<RentStatus, Lbl> = {
+  paid: { label: 'مؤدى', color: '#15803d' },
+  partial: { label: 'أداء جزئي', color: '#b45309' },
+  unpaid: { label: 'غير مؤدى', color: '#b91c1c' },
+  upcoming: { label: 'لم يحل بعد', color: '#64748b' },
+}
 
 export const EXPENSE_CAT: Record<ExpenseCategory, Lbl> = {
   rent: { label: 'كراء المكتب', color: '#0b1b33' },

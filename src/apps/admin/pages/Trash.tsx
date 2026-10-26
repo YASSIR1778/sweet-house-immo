@@ -23,6 +23,7 @@ const KIND: Record<string, { label: string; color: string }> = {
   documents: { label: ENTITY.document, color: '#b45309' },
   offers: { label: ENTITY.offer, color: '#1d4ed8' },
   expenses: { label: ENTITY.expense, color: '#b91c1c' },
+  leases: { label: ENTITY.lease, color: '#0f766e' },
 }
 
 export function Trash() {

@@ -1,12 +1,12 @@
-import { AlarmClock, Building, CalendarPlus, Check, ClipboardPlus, Copy, FolderLock, HandCoins, Inbox, PhoneIncoming, PhoneOutgoing, Printer, Search, UserPlus, UserX } from 'lucide-react'
+import { AlarmClock, Building, Key, CalendarPlus, Check, ClipboardPlus, Copy, FolderLock, HandCoins, Inbox, PhoneIncoming, PhoneOutgoing, Printer, Search, UserPlus, UserX } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { SITE_URL } from '@/shared/lib/config'
 import { useTable } from '@/shared/lib/data'
-import { addDays, fmtDate, fmtPrice, fmtRelative, fmtTime, nowIso, sameDay, waLink } from '@/shared/lib/format'
+import { addDays, fmtDate, fmtNumber, fmtPrice, fmtRelative, fmtTime, nowIso, sameDay, waLink } from '@/shared/lib/format'
 import { mandateState } from '@/shared/lib/owners'
-import type { Appointment, CallLog, Lead, Mandate, Offer, Property, Task } from '@/shared/lib/types'
+import type { Appointment, CallLog, Lead, Lease, Mandate, Offer, Property, RentPayment, Task } from '@/shared/lib/types'
 import { cn } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useQuickAdd } from '../dialogs'
@@ -15,6 +15,8 @@ import { APPT_KIND, APPT_STATUS, LEAD_KIND, PRIORITY, PROPERTY_STATUS, PURPOSE, 
 import { printVisitVoucher } from '../print'
 import { leadReply, propertyMessage, visitReminder } from '../templates'
 import { Card, MiniEmpty, PageHeader, PhoneLinks, Pill, SearchBox } from '../ui'
+import { useRentReminder } from './Rentals'
+import { leaseSchedule } from '@/shared/lib/rentals'
 
 function QuickAction({ icon, label, onClick, tone = 'navy' }: { icon: ReactNode; label: string; onClick: () => void; tone?: 'navy' | 'gold' | 'teal' }) {
   const t = { navy: 'bg-navy text-white', gold: 'bg-gold text-navy-950', teal: 'bg-teal text-white' }[tone]
@@ -38,6 +40,14 @@ export function Desk() {
   const { data: calls = [] } = useTable<CallLog>('calls')
   const { data: mandates = [] } = useTable<Mandate>('mandates')
   const { data: offers = [] } = useTable<Offer>('offers')
+  const { data: leases = [] } = useTable<Lease>('leases')
+  const { data: rents = [] } = useTable<RentPayment>('rent_payments')
+  const remindRent = useRentReminder()
+  const lateRents = leases
+    .filter((l) => l.managed && l.status === 'active')
+    .map((l) => ({ l, row: leaseSchedule(l, rents).filter((r) => r.late > 0).pop() }))
+    .filter((x): x is { l: Lease; row: NonNullable<typeof x.row> } => Boolean(x.row))
+    .sort((a, b) => b.row.late - a.row.late)
   const openOffers = offers.filter((o) => o.status === 'pending' || o.status === 'countered').sort((a, b) => a.updated_at.localeCompare(b.updated_at))
   const mandatesDue = mandates
     .map((m) => ({ m, ...mandateState(m) }))
@@ -246,6 +256,33 @@ export function Desk() {
             )}
             {find && found.length === 0 && <p className="mt-3 text-center text-sm text-muted">لا توجد نتائج</p>}
           </Card>
+
+          {lateRents.length > 0 && (
+            <Card title={`أكرية متأخرة (${lateRents.length})`} icon={<Key className="size-4" />} action={<Link to="/admin/rentals?tab=dues" className="text-xs font-semibold text-teal hover:underline">المستحقات</Link>} bodyClass="p-0">
+              <ul className="divide-y divide-line">
+                {lateRents.slice(0, 5).map(({ l, row }) => {
+                  const link = remindRent(l, row.period, row.due, row.amount - row.paid, true)
+                  return (
+                    <li key={l.id} className="flex items-center gap-3 px-5 py-3">
+                      <Link to={`/admin/rentals/${l.id}`} className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-navy">
+                          <span className="num text-gold-700">{L.property(l.property_id)?.ref ?? '—'}</span> {L.client(l.tenant_client_id)?.full_name ?? ''}
+                        </span>
+                        <span className="text-xs text-muted">
+                          <span className="num">{fmtNumber(row.amount - row.paid)}</span> د.م. · {row.late} يوماً
+                        </span>
+                      </Link>
+                      {link && (
+                        <a href={link} target="_blank" rel="noopener noreferrer" className="inline-flex size-9 items-center justify-center rounded-xl bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366]/20" aria-label="تذكير">
+                          <WhatsAppIcon className="size-4" />
+                        </a>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </Card>
+          )}
 
           {openOffers.length > 0 && (
             <Card title={`عروض تنتظر الرد (${openOffers.length})`} icon={<HandCoins className="size-4" />} action={<Link to="/admin/offers" className="text-xs font-semibold text-teal hover:underline">كل العروض</Link>} bodyClass="p-0">

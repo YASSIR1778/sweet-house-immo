@@ -348,6 +348,86 @@ export interface BillingSettings {
   footer: string
 }
 
+/* ---------------------------------------------------------------- rentals */
+/** housing: revision up to 8 % every 3 years ; professional: up to 10 % (law 67-12, art. 33-34) */
+export type LeaseUsage = 'housing' | 'professional'
+export interface LeaseRevision {
+  /** first month at the new rent, yyyy-mm */
+  from: string
+  rent: number
+  charges: number
+  note: string | null
+}
+export interface InventoryItem {
+  area: string
+  note: string
+}
+/** State of the premises (art. 7-8: detailed, not «good condition»). */
+export interface InventoryState {
+  date: string | null
+  items: InventoryItem[]
+  water: string | null
+  electricity: string | null
+  keys: string | null
+  notes: string | null
+}
+export type LeaseStatus = 'active' | 'ended' | 'cancelled'
+export interface Lease {
+  id: string
+  property_id: string | null
+  owner_client_id: string | null
+  tenant_client_id: string | null
+  usage: LeaseUsage
+  /** yyyy-mm-dd */
+  start_date: string
+  /** empty: renewed by tacit agreement */
+  end_date: string | null
+  /** rent and charges at the start (later ones are in revisions) */
+  rent: number
+  charges: number
+  charges_note: string | null
+  /** day of the month the rent is due (1-28) */
+  pay_day: number
+  payment_method: PayMethod
+  deposit: number
+  deposit_holder: 'owner' | 'agency'
+  deposit_returned_at: string | null
+  /** the agency collects the rent for the owner */
+  managed: boolean
+  /** % of the rent kept by the agency */
+  management_rate: number
+  revisions: LeaseRevision[]
+  equipment: string | null
+  obligations: string | null
+  inventory: { in?: InventoryState; out?: InventoryState }
+  status: LeaseStatus
+  ended_at: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+/** A rent received, with its receipt (Q-2026-0001): rent and charges shown apart (art. 11). */
+export interface RentPayment {
+  id: string
+  no: string
+  lease_id: string
+  /** yyyy-mm */
+  period: string
+  rent: number
+  charges: number
+  method: PayMethod
+  reference: string | null
+  /** yyyy-mm-dd */
+  paid_at: string
+  status: 'valid' | 'cancelled'
+  /** managed lease: when the owner received his share */
+  remitted_at: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+}
+
 /* ---------------------------------------------------------------- owners */
 export type MandateKind = 'exclusive' | 'simple'
 export type KeysHolder = 'agency' | 'owner' | 'concierge' | 'none'

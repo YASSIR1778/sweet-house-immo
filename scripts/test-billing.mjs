@@ -158,6 +158,8 @@ ok('March: partners and expenses', mar.shares === 21250 && mar.expenses === 5500
 ok('March: net = commission − VAT − partners − expenses', mar.net === 12166.67, String(mar.net))
 ok('year totals (April expense, other years ignored)', acc.total.commission === 46700 && acc.total.expenses === 9500 && acc.total.net === 8166.67, JSON.stringify(acc.total))
 ok('no VAT when the agency does not charge it', yearAccounts(deals, [], 2026, 0).total.vat === 0)
+const withFees = yearAccounts(deals, exps, 2026, 20, [{ date: '2026-03-06', amount: 600 }, { date: '2025-03-06', amount: 999 }])
+ok('rent management fees are income (VAT included)', withFees.months[2].management === 600 && withFees.months[2].vat === 7883.33 && withFees.months[2].net === 12666.67, JSON.stringify(withFees.months[2]))
 const res = dealResult(deal, exps, 20)
 ok('result of one deal', res.commission === 42500 && res.vat === 7083.33 && res.shares === 21250 && res.expenses === 1500 && res.net === 12666.67, JSON.stringify(res))
 

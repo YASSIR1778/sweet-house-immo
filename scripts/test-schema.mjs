@@ -378,6 +378,40 @@ await as(null, async () => {
 })
 await db.exec(`delete from re_payments; delete from re_invoices where kind = 'credit'; delete from re_invoices; delete from re_deals where notary = 'الموثق'; delete from re_trash;`)
 
+// ------------------------------------------------------------ rentals (law 67-12)
+await setPerms(['properties'])
+await as(SEC, async () => {
+  const L = (await one(`insert into re_leases (property_id, start_date, rent, charges, deposit, managed, management_rate) values ($1, '2025-09-01', 6500, 300, 13000, true, 8) returning id, status, usage`, [P3]))
+  ok('member records a lease (housing by default)', L?.status === 'active' && L?.usage === 'housing')
+  await fails('unknown usage refused', () => db.query(`update re_leases set usage = 'party' where id = $1`, [L.id]), /check constraint/)
+  await fails('pay day between 1 and 28', () => db.query(`update re_leases set pay_day = 31 where id = $1`, [L.id]), /check constraint/)
+  const q1 = await one(`insert into re_rent_payments (no, lease_id, period, rent, charges, paid_at) values ('', $1, '2026-09', 6500, 300, '2026-09-05') returning id, no`, [L.id])
+  const q2 = await one(`insert into re_rent_payments (no, lease_id, period, rent, charges, paid_at) values ('X', $1, '2026-10', 6500, 300, '2026-10-06') returning no`, [L.id])
+  ok('rent receipts numbered Q-year-0001… by the database', q1?.no === 'Q-2026-0001' && q2?.no === 'Q-2026-0002', `${q1?.no} ${q2?.no}`)
+  await fails('bad period refused', () => db.query(`insert into re_rent_payments (no, lease_id, period, rent) values ('', $1, '2026-13', 100)`, [L.id]), /check constraint/)
+  await fails('empty receipt refused', () => db.query(`insert into re_rent_payments (no, lease_id, period, rent, charges) values ('', $1, '2026-11', 0, 0)`, [L.id]), /check constraint/)
+  await fails('a rent receipt cannot be rewritten', () => db.query(`update re_rent_payments set rent = 1 where id = $1`, [q1.id]), /document_locked/)
+  const rm = await db.query(`update re_rent_payments set remitted_at = '2026-09-08' where id = $1`, [q1.id])
+  ok('the owner remittance is recorded on the receipt', rm.affectedRows === 1)
+  const del = await db.query(`delete from re_rent_payments where id = $1`, [q1.id])
+  ok('a rent receipt is never deleted', del.affectedRows === 0)
+  const dl = await db.query(`delete from re_leases where id = $1`, [L.id])
+  ok('member without «delete» cannot delete a lease', dl.affectedRows === 0)
+})
+await setPerms(['properties', 'delete'])
+await as(SEC, async () => {
+  const L = (await one(`select id from re_leases limit 1`)).id
+  await fails('a lease with rent receipts cannot be deleted', () => db.query(`delete from re_leases where id = $1`, [L]), /foreign key|violates/)
+  const L2 = (await one(`insert into re_leases (start_date, rent) values ('2026-01-01', 3000) returning id`)).id
+  const d2 = await db.query(`delete from re_leases where id = $1`, [L2])
+  ok('an empty lease is deleted and kept in the trash', d2.affectedRows === 1 && (await count(`select count(*) n from re_trash where row_id = $1`, [L2])) === 1)
+})
+await setPerms(['properties'])
+await as(null, async () => {
+  ok('anon: leases and rents hidden', (await count(`select (select count(*) from re_leases) + (select count(*) from re_rent_payments) n`)) === 0)
+})
+await db.exec(`delete from re_rent_payments; delete from re_leases; delete from re_trash;`)
+
 // ------------------------------------------------------------ website visitor (anon)
 const before = await one(`select updated_at from re_properties where id = $1`, [P1])
 await as(null, async () => {

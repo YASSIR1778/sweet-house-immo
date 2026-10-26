@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { PROPERTY_TYPES } from '@/shared/lib/config'
 import { useTable } from '@/shared/lib/data'
 import { addDays, combineDateTime, fmtPrice, localDate, localTime, nowIso, startOfDay, uid, waLink } from '@/shared/lib/format'
-import type { Appointment, AppointmentKind, AppointmentStatus, Broker, CallLog, Client, ClientKind, Deal, Expense, Interest, Invoice, Lang, Lead, LeadKind, LeadSource, Offer, Payment, PriceOpinion, PropertyType, Purpose, Task, TaskPriority } from '@/shared/lib/types'
+import type { Appointment, AppointmentKind, AppointmentStatus, Broker, CallLog, Client, ClientKind, Deal, Expense, Interest, Invoice, Lang, Lead, Lease, LeadKind, LeadSource, Offer, Payment, PriceOpinion, PropertyType, Purpose, RentPayment, Task, TaskPriority } from '@/shared/lib/types'
 import { Button, Field, Input, Modal, Segmented, Select, Switch, Textarea } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useDeleteRow, useLookups, useMe, useNames, useSave } from './hooks'
@@ -12,6 +12,7 @@ import { APPT_KIND, APPT_STATUS, CLIENT_KIND, INTEREST, LANG_LABEL, LEAD_KIND, P
 import { ExpenseDialog, InvoiceDialog, PaymentDialog } from './finance'
 import { BrokerDialog, DealDialog, useBrokerOptions } from './network-dialogs'
 import { OfferDialog } from './offers'
+import { LeaseDialog, RentDialog } from './rentals'
 import { printVisitVoucher } from './print'
 import { visitReminder } from './templates'
 import { Chips, Combo, type ComboOption } from './ui'
@@ -67,7 +68,7 @@ export function StaffSelect({ value, onChange, allowEmpty = true }: { value: str
 /* ------------------------------------------------------------------ */
 /* Quick-add provider: any page can open any form                       */
 /* ------------------------------------------------------------------ */
-export type QuickKind = 'appointment' | 'call' | 'client' | 'task' | 'deal' | 'lead' | 'broker' | 'offer' | 'invoice' | 'payment' | 'expense'
+export type QuickKind = 'appointment' | 'call' | 'client' | 'task' | 'deal' | 'lead' | 'broker' | 'offer' | 'invoice' | 'payment' | 'expense' | 'lease' | 'rent'
 interface InitialMap {
   appointment: Partial<Appointment>
   call: Partial<CallLog>
@@ -80,6 +81,8 @@ interface InitialMap {
   invoice: Partial<Invoice>
   payment: Partial<Payment>
   expense: Partial<Expense>
+  lease: Partial<Lease>
+  rent: Partial<RentPayment>
 }
 type Opener = <K extends QuickKind>(kind: K, initial?: InitialMap[K], onSaved?: (row: unknown) => void) => void
 
@@ -104,6 +107,8 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
       {req?.kind === 'invoice' && <InvoiceDialog key={req.key} initial={req.initial as Partial<Invoice>} onClose={close} onSaved={saved} />}
       {req?.kind === 'payment' && <PaymentDialog key={req.key} initial={req.initial as Partial<Payment>} onClose={close} onSaved={saved} />}
       {req?.kind === 'expense' && <ExpenseDialog key={req.key} initial={req.initial as Partial<Expense>} onClose={close} onSaved={saved} />}
+      {req?.kind === 'lease' && <LeaseDialog key={req.key} initial={req.initial as Partial<Lease>} onClose={close} onSaved={saved} />}
+      {req?.kind === 'rent' && <RentDialog key={req.key} initial={req.initial as Partial<RentPayment>} onClose={close} onSaved={saved} />}
     </QuickCtx.Provider>
   )
 }

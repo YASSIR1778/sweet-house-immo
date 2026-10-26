@@ -12,7 +12,8 @@
     "test:fn": "node scripts/test-staff-fn.mjs",
     "test:fees": "node scripts/test-fees.mjs",
     "test:owners": "node scripts/test-owners.mjs",
-    "test:billing": "node scripts/test-billing.mjs"
+    "test:billing": "node scripts/test-billing.mjs",
+    "test:rentals": "node scripts/test-rentals.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.11",

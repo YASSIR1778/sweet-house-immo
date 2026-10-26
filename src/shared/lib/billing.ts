@@ -228,18 +228,20 @@ export function vatInvoiced(invoices: Pick<Invoice, 'issued_at' | 'total_vat'>[]
 export interface MonthFigures {
   /** commissions of the deals done that month */
   commission: number
+  /** fees kept on the rents the agency collected */
+  management: number
   /** VAT inside those commissions (owed to the State) */
   vat: number
   /** partners' shares */
   shares: number
   expenses: number
-  /** commission - VAT - shares - expenses */
+  /** commission + management - VAT - shares - expenses */
   net: number
 }
 
-const zero = (): MonthFigures => ({ commission: 0, vat: 0, shares: 0, expenses: 0, net: 0 })
+const zero = (): MonthFigures => ({ commission: 0, management: 0, vat: 0, shares: 0, expenses: 0, net: 0 })
 
-export function yearAccounts(deals: Deal[], expenses: Pick<Expense, 'spent_at' | 'amount'>[], year: number, vatRate: number) {
+export function yearAccounts(deals: Deal[], expenses: Pick<Expense, 'spent_at' | 'amount'>[], year: number, vatRate: number, fees: { date: string; amount: number }[] = []) {
   const months = Array.from({ length: 12 }, zero)
   for (const d of deals) {
     if (!isDone(d)) continue
@@ -250,6 +252,12 @@ export function yearAccounts(deals: Deal[], expenses: Pick<Expense, 'spent_at' |
     m.vat += r2(d.commission - htFromTtc(d.commission, vatRate))
     m.shares += sharesTotal(d.shares ?? [], d.commission)
   }
+  for (const f of fees) {
+    if (Number(f.date.slice(0, 4)) !== year) continue
+    const m = months[Number(f.date.slice(5, 7)) - 1]
+    m.management += f.amount
+    m.vat += r2(f.amount - htFromTtc(f.amount, vatRate))
+  }
   for (const e of expenses) {
     if (Number(e.spent_at.slice(0, 4)) !== year) continue
     months[Number(e.spent_at.slice(5, 7)) - 1].expenses += e.amount
@@ -257,10 +265,11 @@ export function yearAccounts(deals: Deal[], expenses: Pick<Expense, 'spent_at' |
   const total = zero()
   for (const m of months) {
     m.commission = r2(m.commission)
+    m.management = r2(m.management)
     m.vat = r2(m.vat)
     m.shares = r2(m.shares)
     m.expenses = r2(m.expenses)
-    m.net = r2(m.commission - m.vat - m.shares - m.expenses)
+    m.net = r2(m.commission + m.management - m.vat - m.shares - m.expenses)
     for (const k of Object.keys(total) as (keyof MonthFigures)[]) total[k] = r2(total[k] + m[k])
   }
   return { months, total }

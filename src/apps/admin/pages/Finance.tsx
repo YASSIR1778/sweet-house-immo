@@ -3,9 +3,10 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { invoiceRest, isOpenDeal, isOverdue, receivables, vatInvoiced, yearAccounts } from '@/shared/lib/billing'
+import { managementFees } from '@/shared/lib/rentals'
 import { useBilling, useTable } from '@/shared/lib/data'
 import { download, fmtDate, fmtNumber, localDate, toCsv } from '@/shared/lib/format'
-import type { BillingSettings, Deal, Expense, ExpenseCategory, Invoice, Payment } from '@/shared/lib/types'
+import type { BillingSettings, Deal, Expense, ExpenseCategory, Invoice, Lease, Payment, RentPayment } from '@/shared/lib/types'
 import { Button, EmptyState, Segmented, Select, cn } from '@/shared/ui/base'
 import { useQuickAdd } from '../dialogs'
 import { useCan, useLookups } from '../hooks'
@@ -31,6 +32,8 @@ export function Finance() {
   const { data: invoices = [] } = useTable<Invoice>('invoices')
   const { data: payments = [] } = useTable<Payment>('payments')
   const { data: expenses = [] } = useTable<Expense>('expenses')
+  const { data: leases = [] } = useTable<Lease>('leases')
+  const { data: rents = [] } = useTable<RentPayment>('rent_payments')
   const now = new Date()
   const today = localDate(now)
   const years = useMemo(() => {
@@ -43,7 +46,8 @@ export function Finance() {
   }, [deals, expenses, invoices])
   const [year, setYear] = useState(now.getFullYear())
 
-  const acc = useMemo(() => yearAccounts(deals, expenses, year, b.vat_rate), [deals, expenses, year, b.vat_rate])
+  const fees = useMemo(() => managementFees(leases, rents), [leases, rents])
+  const acc = useMemo(() => yearAccounts(deals, expenses, year, b.vat_rate, fees), [deals, expenses, year, b.vat_rate, fees])
   const owed = useMemo(() => receivables(deals, payments), [deals, payments])
   const owedTotal = owed.reduce((s, x) => s + x.rest, 0)
   const pipeline = deals.filter(isOpenDeal)
@@ -54,7 +58,7 @@ export function Finance() {
   const vatQuarter = vatInvoiced(invoices, qFrom, qTo)
   const overdue = invoices.filter((i) => isOverdue(i, today))
 
-  const chart = acc.months.map((m, i) => ({ label: MONTH(year, i), income: Math.round(m.commission - m.vat - m.shares), expenses: Math.round(m.expenses), net: Math.round(m.net) }))
+  const chart = acc.months.map((m, i) => ({ label: MONTH(year, i), income: Math.round(m.commission + m.management - m.vat - m.shares), expenses: Math.round(m.expenses), net: Math.round(m.net) }))
   const byCat = useMemo(() => {
     const m = new Map<ExpenseCategory, number>()
     for (const e of expenses) if (Number(e.spent_at.slice(0, 4)) === year) m.set(e.category, (m.get(e.category) ?? 0) + e.amount)
@@ -131,7 +135,7 @@ export function Finance() {
             </div>
             <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
               <span className="inline-flex items-center gap-1.5">
-                <span className="size-2.5 rounded-sm bg-navy" /> دخل الوكالة (العمولة دون الضريبة وحصص الشركاء)
+                <span className="size-2.5 rounded-sm bg-navy" /> دخل الوكالة (العمولات والتسيير، دون الضريبة وحصص الشركاء)
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="size-2.5 rounded-sm" style={{ background: '#e5a3a3' }} /> المصاريف
@@ -149,6 +153,7 @@ export function Finance() {
                   <tr>
                     <th>الشهر</th>
                     <th>العمولات</th>
+                    {acc.total.management > 0 && <th>التسيير</th>}
                     {b.vat_rate > 0 && <th>الضريبة</th>}
                     <th>الشركاء</th>
                     <th>المصاريف</th>
@@ -157,10 +162,11 @@ export function Finance() {
                 </thead>
                 <tbody>
                   {acc.months.map((m, i) =>
-                    m.commission || m.expenses ? (
+                    m.commission || m.expenses || m.management ? (
                       <tr key={i}>
                         <td className="text-sm font-semibold text-navy">{MONTH_LONG(year, i)}</td>
                         <td className="num">{fmtNumber(m.commission)}</td>
+                        {acc.total.management > 0 && <td className="num">{fmtNumber(m.management)}</td>}
                         {b.vat_rate > 0 && <td className="num text-muted">{fmtNumber(m.vat)}</td>}
                         <td className="num text-muted">{fmtNumber(m.shares)}</td>
                         <td className="num text-danger">{fmtNumber(m.expenses)}</td>
@@ -173,6 +179,7 @@ export function Finance() {
                   <tr>
                     <td className="font-bold text-navy">المجموع</td>
                     <td className="num font-extrabold">{fmtNumber(acc.total.commission)}</td>
+                    {acc.total.management > 0 && <td className="num font-bold">{fmtNumber(acc.total.management)}</td>}
                     {b.vat_rate > 0 && <td className="num font-bold text-muted">{fmtNumber(acc.total.vat)}</td>}
                     <td className="num font-bold text-muted">{fmtNumber(acc.total.shares)}</td>
                     <td className="num font-bold text-danger">{fmtNumber(acc.total.expenses)}</td>

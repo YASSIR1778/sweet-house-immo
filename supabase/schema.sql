@@ -565,6 +565,10 @@ begin
     if exists (select 1 from public.re_invoices where id = new.id) then return new; end if;
     series := case when new.kind = 'credit' then 'AV' else 'F' end;
     day := coalesce(new.issued_at, current_date);
+  elsif tg_table_name = 're_rent_payments' then
+    if exists (select 1 from public.re_rent_payments where id = new.id) then return new; end if;
+    series := 'Q';
+    day := coalesce(new.paid_at, current_date);
   else
     if exists (select 1 from public.re_payments where id = new.id) then return new; end if;
     series := 'R';
@@ -587,7 +591,7 @@ create trigger re_number_payment before insert on public.re_payments for each ro
 create or replace function public.re_lock_doc() returns trigger
 language plpgsql as $$
 declare
-  free text[] := array['status', 'paid', 'notes', 'due_at', 'deal_id', 'client_id', 'invoice_id', 'updated_at'];
+  free text[] := array['status', 'paid', 'notes', 'due_at', 'deal_id', 'client_id', 'invoice_id', 'remitted_at', 'updated_at'];
 begin
   if (to_jsonb(old) - free) is distinct from (to_jsonb(new) - free) then
     raise exception 'document_locked: cancel it and issue a new one' using errcode = 'check_violation';
@@ -602,6 +606,72 @@ drop trigger if exists re_lock_invoice on public.re_invoices;
 create trigger re_lock_invoice before update on public.re_invoices for each row execute function public.re_lock_doc();
 drop trigger if exists re_lock_payment on public.re_payments;
 create trigger re_lock_payment before update on public.re_payments for each row execute function public.re_lock_doc();
+
+-- ---------------------------------------------------------------------
+-- Rental management (law 67-12): leases, rents and their receipts
+-- ---------------------------------------------------------------------
+create table if not exists public.re_leases (
+  id uuid primary key default gen_random_uuid(),
+  property_id uuid references public.re_properties (id) on delete set null,
+  owner_client_id uuid references public.re_clients (id) on delete set null,
+  tenant_client_id uuid references public.re_clients (id) on delete set null,
+  -- housing: revision up to 8 % every 3 years ; professional: up to 10 % (art. 33-34)
+  usage text not null default 'housing' check (usage in ('housing', 'professional')),
+  start_date date not null,
+  -- empty: renewed by tacit agreement
+  end_date date,
+  rent numeric not null check (rent >= 0),
+  charges numeric not null default 0 check (charges >= 0),
+  charges_note text,
+  pay_day int not null default 1 check (pay_day between 1 and 28),
+  payment_method text not null default 'cash' check (payment_method in ('cash', 'transfer', 'cheque', 'card', 'other')),
+  -- at most two months of rent (art. 20)
+  deposit numeric not null default 0 check (deposit >= 0),
+  deposit_holder text not null default 'owner' check (deposit_holder in ('owner', 'agency')),
+  deposit_returned_at date,
+  -- the agency collects the rent for the owner and keeps a fee
+  managed boolean not null default false,
+  management_rate numeric not null default 0 check (management_rate >= 0 and management_rate <= 100),
+  -- [{from: 'yyyy-mm', rent, charges, note}]
+  revisions jsonb not null default '[]'::jsonb,
+  equipment text,
+  obligations text,
+  -- state of the premises at entry and exit (art. 7-8)
+  inventory jsonb not null default '{}'::jsonb,
+  status text not null default 'active' check (status in ('active', 'ended', 'cancelled')),
+  ended_at date,
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists re_leases_property_idx on public.re_leases (property_id);
+
+-- each rent received, with its receipt (art. 11: rent and charges shown apart)
+create table if not exists public.re_rent_payments (
+  id uuid primary key default gen_random_uuid(),
+  no text not null unique,
+  lease_id uuid not null references public.re_leases (id) on delete restrict,
+  period text not null check (period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+  rent numeric not null default 0 check (rent >= 0),
+  charges numeric not null default 0 check (charges >= 0),
+  method text not null default 'cash' check (method in ('cash', 'transfer', 'cheque', 'card', 'other')),
+  reference text,
+  paid_at date not null default current_date,
+  status text not null default 'valid' check (status in ('valid', 'cancelled')),
+  -- managed lease: when the owner received his share
+  remitted_at date,
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  constraint re_rent_payments_amount_check check (rent + charges > 0)
+);
+create index if not exists re_rent_payments_lease_idx on public.re_rent_payments (lease_id, period);
+
+drop trigger if exists re_number_rent on public.re_rent_payments;
+create trigger re_number_rent before insert on public.re_rent_payments for each row execute function public.re_number_doc();
+drop trigger if exists re_lock_rent on public.re_rent_payments;
+create trigger re_lock_rent before update on public.re_rent_payments for each row execute function public.re_lock_doc();
 
 -- ---------------------------------------------------------------------
 -- Trash: every deleted record is kept 30 days and can be restored
@@ -631,7 +701,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['re_properties', 're_clients', 're_leads', 're_appointments', 're_tasks', 're_calls', 're_deals', 're_brokers', 're_mandates', 're_documents', 're_offers', 're_expenses'] loop
+  foreach t in array array['re_properties', 're_clients', 're_leads', 're_appointments', 're_tasks', 're_calls', 're_deals', 're_brokers', 're_mandates', 're_documents', 're_offers', 're_expenses', 're_leases'] loop
     execute format('drop trigger if exists re_trash_%1$s on public.%1$s', t);
     execute format('create trigger re_trash_%1$s before delete on public.%1$s for each row execute function public.re_to_trash()', t);
   end loop;
@@ -667,6 +737,8 @@ drop trigger if exists re_touch_invoices on public.re_invoices;
 create trigger re_touch_invoices before update on public.re_invoices for each row execute function public.re_touch();
 drop trigger if exists re_touch_expenses on public.re_expenses;
 create trigger re_touch_expenses before update on public.re_expenses for each row execute function public.re_touch();
+drop trigger if exists re_touch_leases on public.re_leases;
+create trigger re_touch_leases before update on public.re_leases for each row execute function public.re_touch();
 
 -- ---------------------------------------------------------------------
 -- Anti-spam: at most 3 website requests per phone number every 10 minutes
@@ -796,6 +868,25 @@ alter table public.re_counters enable row level security;
 alter table public.re_invoices enable row level security;
 alter table public.re_payments enable row level security;
 alter table public.re_expenses enable row level security;
+alter table public.re_leases enable row level security;
+alter table public.re_rent_payments enable row level security;
+
+-- rentals: the whole team follows leases and records rents; deleting a lease needs «delete»;
+-- a rent receipt is never deleted (it is cancelled)
+drop policy if exists re_leases_select on public.re_leases;
+create policy re_leases_select on public.re_leases for select to authenticated using ((select public.re_is_staff()));
+drop policy if exists re_leases_insert on public.re_leases;
+create policy re_leases_insert on public.re_leases for insert to authenticated with check ((select public.re_is_staff()));
+drop policy if exists re_leases_update on public.re_leases;
+create policy re_leases_update on public.re_leases for update to authenticated using ((select public.re_is_staff())) with check ((select public.re_is_staff()));
+drop policy if exists re_leases_delete on public.re_leases;
+create policy re_leases_delete on public.re_leases for delete to authenticated using ((select public.re_can('delete')));
+drop policy if exists re_rent_payments_select on public.re_rent_payments;
+create policy re_rent_payments_select on public.re_rent_payments for select to authenticated using ((select public.re_is_staff()));
+drop policy if exists re_rent_payments_insert on public.re_rent_payments;
+create policy re_rent_payments_insert on public.re_rent_payments for insert to authenticated with check ((select public.re_is_staff()));
+drop policy if exists re_rent_payments_update on public.re_rent_payments;
+create policy re_rent_payments_update on public.re_rent_payments for update to authenticated using ((select public.re_is_staff())) with check ((select public.re_is_staff()));
 
 -- invoices and receipts: the «deals» permission; never deleted (an invoice is cancelled by a credit note).
 -- re_counters has no policy: only the numbering trigger touches it.

@@ -1,6 +1,7 @@
 import { defaultChecklist } from './billing'
+import { addMonths, periodOf, periodsBetween } from './rentals'
 import { DEMO_USERS } from './config'
-import type { Activity, Appointment, Broker, CallLog, Client, Deal, Expense, Invoice, Lead, Mandate, Offer, Payment, PriceChange, Property, Staff, Task } from './types'
+import type { Activity, Appointment, Broker, CallLog, Client, Deal, Expense, Invoice, Lead, Lease, Mandate, Offer, Payment, PriceChange, Property, RentPayment, Staff, Task } from './types'
 
 const img = (id: string, w = 1400) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`
 
@@ -139,11 +140,12 @@ export function seedProperties(): Property[] {
         lat: 35.5731,
         lng: -5.3706,
         images: [img('1493809842364-78817add7ffb'), img('1484154218962-a197022b5858'), img('1505693416388-ac5ce068fe85')],
-        status: 'available',
+        status: 'rented',
+        owner_client_id: 'c-7',
         featured: true,
-        published: true,
+        published: false,
       },
-      3,
+      1300,
     ),
     prop(
       {
@@ -417,11 +419,12 @@ export function seedProperties(): Property[] {
         lat: 35.5752,
         lng: -5.3721,
         images: [img('1497366811353-6870744d04b2'), img('1497366216548-37526070297c')],
-        status: 'available',
+        status: 'rented',
+        owner_client_id: 'c-7',
         featured: false,
-        published: true,
+        published: false,
       },
-      18,
+      450,
     ),
     prop(
       {
@@ -672,6 +675,9 @@ export function seedClients(): Client[] {
     { ...base, id: 'c-3', full_name: 'محمد بنعيسى', phone: '0677889900', kind: 'tenant', source: 'phone', budget_min: 3_000, budget_max: 5_000, wants_purpose: 'rent', wants_types: ['apartment'], wants_neighborhoods: ['centre', 'tabola', 'coelma'], wants_rooms_min: 3, notes: 'أستاذ، يحتاج السكن قبل بداية الشهر المقبل.', created_at: ago(6) },
     { ...base, id: 'c-4', share_token: '7d3f9a52-4c1e-4b8a-9f2d-1a6c5e8b0c41', last_report_at: ago(31), full_name: 'خديجة الريسوني', phone: '0655443322', kind: 'owner', source: 'referral', budget_min: null, budget_max: null, wants_purpose: null, wants_types: [], wants_neighborhoods: [], wants_rooms_min: null, notes: 'مالكة الرياض SH-1004. تفضل التواصل بعد الزوال.', created_at: ago(22) },
     { ...base, id: 'c-5', broker_id: 'b-2', full_name: 'Youssef El Idrissi', phone: '0612345678', email: 'y.idrissi@example.com', lang: 'fr', kind: 'investor', source: 'facebook', budget_min: 1_500_000, budget_max: 3_000_000, wants_purpose: 'sale', wants_types: ['land', 'commercial', 'building'], wants_neighborhoods: ['route-martil', 'centre', 'tabola'], wants_rooms_min: null, notes: 'مستثمر مقيم ببلجيكا، يزور تطوان في الصيف.', created_at: ago(30) },
+    { ...base, id: 'c-7', full_name: 'عبد اللطيف الخمليشي', phone: '0661987654', kind: 'owner', source: 'referral', budget_min: null, budget_max: null, wants_purpose: null, wants_types: [], wants_neighborhoods: [], wants_rooms_min: null, notes: 'مالك المكتب SH-1011 والشقة SH-1003. فوّض للوكالة تحصيل كراء المكتب.', created_at: ago(460) },
+    { ...base, id: 'c-8', full_name: 'Imane Ziani', phone: '0662456789', email: 'cabinet.ziani@example.com', lang: 'fr', kind: 'tenant', source: 'website', budget_min: null, budget_max: null, wants_purpose: 'rent', wants_types: ['office'], wants_neighborhoods: ['centre'], wants_rooms_min: null, notes: 'Cabinet comptable — locataire du bureau SH-1011.', created_at: ago(440) },
+    { ...base, id: 'c-9', full_name: 'سعيد العمراني', phone: '0670654321', kind: 'tenant', source: 'walkin', budget_min: null, budget_max: null, wants_purpose: 'rent', wants_types: ['apartment'], wants_neighborhoods: ['centre'], wants_rooms_min: null, notes: 'مكتري الشقة المفروشة SH-1003.', created_at: ago(1290) },
     { ...base, id: 'c-6', full_name: 'سعاد الحداد', phone: '0698765432', kind: 'tenant', source: 'walkin', budget_min: 2_000, budget_max: 3_000, wants_purpose: 'rent', wants_types: ['studio', 'apartment'], wants_neighborhoods: ['universite', 'saniat-rmel'], wants_rooms_min: 1, notes: 'طالبة ماستر، تبحث عن استوديو مفروش.', created_at: ago(3) },
   ]
 }
@@ -895,6 +901,104 @@ export function seedDeals(): Deal[] {
   ]
 }
 
+/* Two leases: an office the agency manages (rent collected every month), and an apartment let three years ago. */
+export function seedLeases(): Lease[] {
+  const now = new Date()
+  const first = (monthsAgo: number) => `${addMonths(periodOf(now), -monthsAgo)}-01`
+  const base = { owner_client_id: 'c-7', end_date: null, charges_note: null, deposit_returned_at: null, revisions: [], equipment: null, obligations: null, inventory: {}, status: 'active' as const, ended_at: null, notes: null, created_by: ADMIN }
+  return [
+    {
+      ...base,
+      id: 'ls-1',
+      property_id: 'p-1011',
+      tenant_client_id: 'c-8',
+      usage: 'professional',
+      start_date: first(14),
+      rent: 6_500,
+      charges: 300,
+      charges_note: 'السانديك والتنظيف',
+      pay_day: 5,
+      payment_method: 'transfer',
+      deposit: 13_000,
+      deposit_holder: 'agency',
+      managed: true,
+      management_rate: 8,
+      equipment: 'مكيفان، 4 مكاتب و8 كراسٍ، خزانة أرشيف، ثلاجة صغيرة',
+      obligations: 'يتحمل المكتري استهلاك الماء والكهرباء والإنترنت.',
+      inventory: {
+        in: {
+          date: first(14),
+          items: [
+            { area: 'المكتب الرئيسي', note: 'أرضية رخام أبيض بدون كسور، 4 مقابس كهربائية تشتغل، نافذتان بزجاج سليم وستائر رمادية' },
+            { area: 'قاعة الاستقبال', note: 'طلاء أبيض جديد، مكيف LG يشتغل مع جهاز التحكم، باب زجاجي بقفل' },
+            { area: 'المطبخ الصغير', note: 'مغسلة وصنبور يشتغلان، ثلاجة صغيرة، خزانتان معلقتان' },
+            { area: 'دورة المياه', note: 'مرحاض ومغسلة بحالة اشتغال، سخان ماء كهربائي 30 لتراً' },
+          ],
+          water: '00125 m³',
+          electricity: '045213 kWh',
+          keys: '3 مفاتيح للباب الرئيسي وبطاقة المرأب',
+          notes: null,
+        },
+      },
+      created_at: ago(430),
+      updated_at: ago(430),
+    },
+    {
+      ...base,
+      id: 'ls-2',
+      property_id: 'p-1003',
+      tenant_client_id: 'c-9',
+      usage: 'housing',
+      start_date: first(40),
+      rent: 4_500,
+      charges: 0,
+      pay_day: 1,
+      payment_method: 'cash',
+      deposit: 9_000,
+      deposit_holder: 'owner',
+      managed: false,
+      management_rate: 0,
+      notes: 'حررت الوكالة العقد فقط؛ الكراء يؤدى مباشرة للمالك.',
+      created_at: ago(1215),
+      updated_at: ago(1215),
+    },
+  ]
+}
+
+/** Every rent of the managed office up to last month; the current month is still unpaid. */
+export function seedRentPayments(): RentPayment[] {
+  const now = new Date()
+  const periods = periodsBetween(addMonths(periodOf(now), -14), addMonths(periodOf(now), -1))
+  const perYear = new Map<string, number>()
+  return periods
+    .map((period, i) => {
+      const year = period.slice(0, 4)
+      const n = (perYear.get(year) ?? 0) + 1
+      perYear.set(year, n)
+      const day = String(3 + (i % 4)).padStart(2, '0')
+      const paid_at = `${period}-${day}`
+      const last = i === periods.length - 1
+      return {
+        id: `rp-${period}`,
+        no: `Q-${year}-${String(n).padStart(4, '0')}`,
+        lease_id: 'ls-1',
+        period,
+        rent: 6_500,
+        charges: 300,
+        method: 'transfer' as const,
+        reference: `Virement ${period.replace('-', '')}`,
+        paid_at,
+        status: 'valid' as const,
+        // the owner is paid a few days later; last month's share is still to remit
+        remitted_at: last ? null : `${period}-${String(Number(day) + 4).padStart(2, '0')}`,
+        notes: null,
+        created_by: SEC,
+        created_at: `${paid_at}T10:00:00.000Z`,
+      }
+    })
+    .reverse()
+}
+
 /* Invoices and receipts of the last deals, and the agency's expenses (VAT 20 %). */
 export function seedInvoices(): Invoice[] {
   const day = (n: number) => at(-n, 12).slice(0, 10)
@@ -1025,6 +1129,8 @@ export function seedData() {
     invoices: seedInvoices(),
     payments: seedPayments(),
     expenses: seedExpenses(),
+    leases: seedLeases(),
+    rent_payments: seedRentPayments(),
     calls: seedCalls(),
     staff: seedStaff(),
     activity: seedActivity(),

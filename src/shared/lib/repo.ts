@@ -6,7 +6,7 @@ import { DEMO_BILLING, nextDocNumber } from './billing'
 import { buildOwnerReport } from './owners'
 import type { Activity, Appointment, Client, FeeSettings, Lead, Mandate, OwnerReport, PriceChange, Property, SessionUser, Settings } from './types'
 
-export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers' | 'mandates' | 'documents' | 'price_history' | 'trash' | 'offers' | 'invoices' | 'payments' | 'expenses'
+export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers' | 'mandates' | 'documents' | 'price_history' | 'trash' | 'offers' | 'invoices' | 'payments' | 'expenses' | 'leases' | 'rent_payments'
 
 export const TABLE: Record<TableName, string> = {
   properties: 're_properties',
@@ -27,10 +27,12 @@ export const TABLE: Record<TableName, string> = {
   invoices: 're_invoices',
   payments: 're_payments',
   expenses: 're_expenses',
+  leases: 're_leases',
+  rent_payments: 're_rent_payments',
 }
 
 /** Demo: deleted rows of these tables are kept in the local trash, like the database trigger does. */
-const LOCAL_TRASH: TableName[] = ['properties', 'clients', 'leads', 'appointments', 'tasks', 'calls', 'deals', 'brokers', 'mandates', 'documents', 'offers', 'expenses']
+const LOCAL_TRASH: TableName[] = ['properties', 'clients', 'leads', 'appointments', 'tasks', 'calls', 'deals', 'brokers', 'mandates', 'documents', 'offers', 'expenses', 'leases']
 
 export const DOCS_BUCKET = 'property-docs'
 
@@ -102,7 +104,7 @@ function stripPrivate(p: Property): Property {
 /* Demo mode: everything in localStorage, seeded with sample data        */
 /* ------------------------------------------------------------------ */
 /** Raise when the demo gains a table, so browsers seeded before receive its sample rows. */
-const SEED_VERSION = '3'
+const SEED_VERSION = '4'
 
 class LocalRepo implements Repo {
   mode = 'demo' as const
@@ -171,11 +173,11 @@ class LocalRepo implements Repo {
         this.write('price_history', [h, ...this.read<PriceChange>('price_history')])
       }
     }
-    if (i < 0 && (table === 'invoices' || table === 'payments')) {
+    if (i < 0 && (table === 'invoices' || table === 'payments' || table === 'rent_payments')) {
       // the database numbers invoices and receipts; the demo does it here
-      const r = row as unknown as { kind?: string; issued_at?: string; received_at?: string }
-      const series = table === 'payments' ? 'R' : r.kind === 'credit' ? 'AV' : 'F'
-      const year = Number(String((table === 'payments' ? r.received_at : r.issued_at) ?? nowIso()).slice(0, 4))
+      const r = row as unknown as { kind?: string; issued_at?: string; received_at?: string; paid_at?: string }
+      const series = table === 'rent_payments' ? 'Q' : table === 'payments' ? 'R' : r.kind === 'credit' ? 'AV' : 'F'
+      const year = Number(String((table === 'rent_payments' ? r.paid_at : table === 'payments' ? r.received_at : r.issued_at) ?? nowIso()).slice(0, 4))
       row = { ...row, no: nextDocNumber(rows.map((x) => String((x as unknown as { no?: string }).no ?? '')), series, year) }
     }
     if (i >= 0) rows[i] = { ...rows[i], ...row }

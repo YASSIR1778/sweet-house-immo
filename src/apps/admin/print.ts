@@ -5,7 +5,8 @@ import { fmtDate, fmtNumber, fmtPhone, fmtPrice, fmtTime, interpolate, pick } fr
 import { translate } from '@/shared/lib/i18n'
 import { amountInWordsFr } from '@/shared/lib/billing'
 import { daysOnMarket } from '@/shared/lib/owners'
-import type { Appointment, BillingSettings, Client, Invoice, Mandate, OwnerReport, PayMethod, Payment, Property, Settings } from '@/shared/lib/types'
+import { depositMax, monthName, rentFor } from '@/shared/lib/rentals'
+import type { Appointment, BillingSettings, Client, InventoryState, Invoice, Lease, Mandate, OwnerReport, PayMethod, Payment, Property, RentPayment, Settings } from '@/shared/lib/types'
 import { KEYS, MANDATE_KIND, PAY_METHOD, PROPERTY_STATUS } from './labels'
 
 const esc = (s: string | number | null | undefined) =>
@@ -364,4 +365,124 @@ export function printReceipt(p: Payment, b: BillingSettings, s: Settings, about:
   <div class="sign"><div>توقيع المؤدي<br><span class="fr">Signature du payeur</span></div><div>توقيع وختم الوكالة<br><span class="fr">Cachet et signature de l’agence</span></div></div>
   <div class="legal">${legalLine(b, s)}</div>`
   openPrint(`Reçu ${p.no}`, body)
+}
+
+/* ------------------------------------------------------------------ */
+/* Rentals (law 67-12)                                                  */
+/* ------------------------------------------------------------------ */
+const vrow = (ar: string, fr: string, v: string) => `<tr><th>${esc(ar)}<small>${esc(fr)}</small></th><td>${v}</td></tr>`
+const BLANK = '<span style="color:#b9ad92">............................................</span>'
+const hoodOf = (s: Settings, id: string | null | undefined) => (id ? pick(s.catalog.neighborhoods.find((n) => n.id === id)?.name, 'ar') || id : '')
+const premises = (p: Property | undefined, s: Settings) =>
+  p ? `<b class="num">${esc(p.ref)}</b> — ${esc(translate(`type.${p.type}`, 'ar'))} · ${esc(hoodOf(s, p.neighborhood))}${p.address ? ` · ${esc(p.address)}` : ''}${p.area ? ` · <span class="num">${esc(p.area)} m²</span>` : ''}` : BLANK
+
+/** Rent receipt (art. 11): rent and charges apart, signed by the landlord or his agent. */
+export function printRentReceipt(p: RentPayment, l: Lease, prop: Property | undefined, owner: Client | undefined, tenant: Client | undefined, b: BillingSettings, s: Settings) {
+  const agency = b.company || pick(s.agency.name, 'fr')
+  const total = p.rent + p.charges
+  const body = `${header(s)}
+  ${p.status === 'cancelled' ? '<div class="void">ANNULÉE · ملغى</div>' : ''}
+  <div class="vtitle"><h1>وصل كراء · Quittance de loyer</h1><div class="no">N° <span class="num">${esc(p.no)}</span> · ${esc(b.city || 'Tétouan')}, le <span class="num">${dmy(p.paid_at)}</span></div></div>
+  <table class="v">
+    ${vrow('المكري', 'Bailleur', `${owner ? `<b>${esc(owner.full_name)}</b>` : BLANK}${l.managed ? `<br><small>بواسطة وكيله · par son mandataire : ${esc(agency)}</small>` : ''}`)}
+    ${vrow('المكتري', 'Locataire', tenant ? `<b>${esc(tenant.full_name)}</b>` : BLANK)}
+    ${vrow('المحل المكترى', 'Local loué', premises(prop, s))}
+    ${vrow('عن شهر', 'Période', `${esc(monthName(p.period, 'ar'))} · ${esc(monthName(p.period, 'fr'))}`)}
+    ${vrow('الوجيبة الكرائية', 'Loyer', `<span class="num">${money2(p.rent)} DH</span>`)}
+    ${vrow('التكاليف الكرائية', 'Charges', `<span class="num">${money2(p.charges)} DH</span>${l.charges_note ? ` <small>(${esc(l.charges_note)})</small>` : ''}`)}
+    ${vrow('المجموع', 'Total', `<b class="num" style="font-size:17px">${money2(total)} DH</b><div class="fr">${esc(amountInWordsFr(total))}</div>`)}
+    ${vrow('طريقة الأداء', 'Mode de paiement', `${esc(PAY_METHOD[p.method])} · ${esc(PAY_FR[p.method])}${p.reference ? ` — <span class="num">${esc(p.reference)}</span>` : ''}`)}
+  </table>
+  <div class="clause">يشهد المكري${l.managed ? ' بواسطة وكيله' : ''} بأنه توصل من المكتري بالمبلغ أعلاه عن الفترة المذكورة. وصل مسلم طبقاً للمادة 11 من القانون رقم 67.12.</div>
+  <div class="clause fr">Le bailleur${l.managed ? ', par son mandataire,' : ''} reconnaît avoir reçu du locataire la somme ci-dessus pour la période indiquée. Quittance délivrée conformément à l’article 11 de la loi n° 67-12.</div>
+  <div class="sign one"><div>توقيع المكري أو وكيله<br><span class="fr">Signature du bailleur ou de son mandataire</span></div></div>
+  ${l.managed ? `<div class="legal">${legalLine(b, s)}</div>` : ''}`
+  openPrint(`Quittance ${p.no}`, body)
+}
+
+/** Lease contract with the mentions of article 3 of law 67-12 (to be checked before signing). */
+export function printLease(l: Lease, prop: Property | undefined, owner: Client | undefined, tenant: Client | undefined, s: Settings, b: BillingSettings) {
+  const housing = l.usage === 'housing'
+  const agency = b.company || pick(s.agency.name, 'fr')
+  const party = (c: Client | undefined) =>
+    `${c ? `<b>${esc(c.full_name)}</b>` : BLANK}<br><small>رقم البطاقة الوطنية · CIN :</small> ${BLANK}<br><small>المهنة · Profession :</small> ${BLANK}<br><small>الموطن · Domicile :</small> ${BLANK}${c?.phone ? `<br><small>الهاتف · Tél. :</small> <span class="num">${esc(fmtPhone(c.phone))}</span>` : ''}`
+  const cur = rentFor(l, l.start_date.slice(0, 7))
+  const art = (ar: string, fr: string) => `<div class="clause">${ar}</div><div class="clause fr">${fr}</div>`
+  const body = `${header(s)}
+  <div class="vtitle"><h1>عقد كراء ${housing ? 'محل معد للسكنى' : 'محل معد للاستعمال المهني'}</h1><div class="no">Contrat de bail — local à usage ${housing ? 'd’habitation' : 'professionnel'} · loi n° 67-12</div></div>
+  <table class="v">
+    ${vrow('المكري', 'Le bailleur', party(owner))}
+    ${vrow('المكتري', 'Le locataire', party(tenant))}
+    ${l.managed ? vrow('وكيل المكري', 'Mandataire du bailleur', esc(agency)) : ''}
+    ${vrow('المحل المكترى ومرافقه', 'Local loué et dépendances', premises(prop, s))}
+    ${vrow('الغرض', 'Destination', housing ? 'السكنى · Habitation' : 'الاستعمال المهني · Usage professionnel')}
+    ${vrow('التجهيزات المخصصة للمكتري', 'Équipements à l’usage du locataire', l.equipment ? esc(l.equipment) : BLANK)}
+    ${vrow('المدة', 'Durée', `ابتداء من <span class="num">${dmy(l.start_date)}</span>${l.end_date ? ` إلى <span class="num">${dmy(l.end_date)}</span>` : ' ويتجدد ضمنياً'}<br><small>à compter du ${dmy(l.start_date)}${l.end_date ? ` au ${dmy(l.end_date)}` : ', renouvelable par tacite reconduction'}</small>`)}
+    ${vrow('الوجيبة الكرائية', 'Loyer', `<b class="num">${money2(cur.rent)} DH</b> شهرياً · par mois — <span class="num">${esc(amountInWordsFr(cur.rent))}</span>`)}
+    ${vrow('التكاليف الكرائية', 'Charges locatives', `<span class="num">${money2(cur.charges)} DH</span> شهرياً${l.charges_note ? ` — ${esc(l.charges_note)}` : ''}`)}
+    ${vrow('الأداء', 'Paiement', `قبل اليوم <span class="num">${esc(l.pay_day)}</span> من كل شهر · avant le ${esc(l.pay_day)} de chaque mois — ${esc(PAY_METHOD[l.payment_method])} · ${esc(PAY_FR[l.payment_method])}`)}
+    ${vrow('الضمانة', 'Dépôt de garantie', `<span class="num">${money2(l.deposit)} DH</span> <small>(${l.deposit <= depositMax(cur.rent) ? 'لا تتجاوز كراء شهرين · n’excède pas deux mois de loyer' : 'تتجاوز الحد القانوني · dépasse le plafond légal'})</small>`)}
+  </table>
+  ${art(
+    'الضمانة: تُرد للمكتري في أجل أقصاه شهر من تاريخ إرجاع المحل، مع خصم المبالغ الواجبة للمكري عند الاقتضاء شريطة إثباتها (المادة 20).',
+    'Garantie : restituée au locataire dans un délai maximum d’un mois à compter de la restitution du local, déduction faite le cas échéant des sommes dues au bailleur, dûment justifiées (art. 20).',
+  )}
+  ${art(
+    `مراجعة الوجيبة: ما لم يتفق الطرفان على غير ذلك، تُراجع بعد مرور ثلاث سنوات على الأقل، بنسبة ${housing ? '8%' : '10%'} (المادتان 33 و34).`,
+    `Révision du loyer : à défaut d’accord, au plus tôt tous les trois ans, au taux de ${housing ? '8 %' : '10 %'} (art. 33 et 34).`,
+  )}
+  ${art(
+    'البيان الوصفي: يُعد الطرفان بياناً وصفياً مفصلاً لحالة المحل عند التسليم وعند الإرجاع، يُرفق بهذا العقد (المادتان 7 و8). يسلم المكري وصلاً عن كل أداء (المادة 11). لا تجوز تولية الكراء أو التخلي عنه دون موافقة كتابية من المكري (المادة 39).',
+    'État des lieux : établi contradictoirement et en détail à l’entrée et à la sortie, annexé au présent contrat (art. 7 et 8). Le bailleur délivre une quittance pour chaque paiement (art. 11). Sous-location et cession interdites sans accord écrit du bailleur (art. 39).',
+  )}
+  ${l.obligations ? art(`التزامات خاصة: ${esc(l.obligations)}`, 'Obligations particulières : voir ci-dessus.') : ''}
+  <div class="sign"><div>توقيع المكري مع عبارة «قرأت ووافقت»<br><span class="fr">Le bailleur, « lu et approuvé »</span></div><div>توقيع المكتري مع عبارة «قرأت ووافقت»<br><span class="fr">Le locataire, « lu et approuvé »</span></div></div>
+  <div class="small">حُرر في ثلاث نسخ مع تصحيح الإمضاءات · Fait en trois exemplaires, signatures légalisées · ${esc(b.city || 'Tétouan')}, le ............ — نموذج يتضمن البيانات الإلزامية للمادة 3 من القانون 67.12، يُراجع قبل التوقيع.</div>`
+  openPrint(`Bail ${prop?.ref ?? ''}`, body)
+}
+
+/** State of the premises (art. 7-8), to sign by both parties and attach to the lease. */
+export function printInventory(side: 'in' | 'out', st: InventoryState, prop: Property | undefined, owner: Client | undefined, tenant: Client | undefined, s: Settings) {
+  const body = `${header(s)}
+  <div class="vtitle"><h1>بيان وصفي لحالة المحل ${side === 'in' ? 'عند التسليم' : 'عند الإرجاع'}</h1><div class="no">État des lieux ${side === 'in' ? 'd’entrée' : 'de sortie'} · art. 7-8 loi 67-12 · <span class="num">${st.date ? dmy(st.date) : '..../..../........'}</span></div></div>
+  <table class="v">
+    ${vrow('المحل', 'Local', premises(prop, s))}
+    ${vrow('المكري', 'Bailleur', owner ? esc(owner.full_name) : BLANK)}
+    ${vrow('المكتري', 'Locataire', tenant ? esc(tenant.full_name) : BLANK)}
+  </table>
+  <table class="v" style="font-size:12.5px"><thead><tr><th style="width:28%">الجزء · Pièce</th><th style="width:auto">الوصف الدقيق · Description détaillée</th></tr></thead><tbody>
+  ${st.items.map((it) => `<tr><td><b>${esc(it.area)}</b></td><td>${esc(it.note)}</td></tr>`).join('')}
+  </tbody></table>
+  <table class="v">
+    ${vrow('عداد الماء', 'Compteur d’eau', st.water ? `<span class="num">${esc(st.water)}</span>` : BLANK)}
+    ${vrow('عداد الكهرباء', 'Compteur d’électricité', st.electricity ? `<span class="num">${esc(st.electricity)}</span>` : BLANK)}
+    ${vrow('المفاتيح', 'Clés remises', st.keys ? esc(st.keys) : BLANK)}
+    ${st.notes ? vrow('ملاحظات', 'Observations', esc(st.notes)) : ''}
+  </table>
+  <div class="sign"><div>توقيع المكري<br><span class="fr">Le bailleur</span></div><div>توقيع المكتري<br><span class="fr">Le locataire</span></div></div>`
+  openPrint(`État des lieux ${prop?.ref ?? ''}`, body)
+}
+
+export interface OwnerStatementRow {
+  date: string
+  no: string
+  ref: string
+  period: string
+  collected: number
+  fee: number
+  net: number
+  remitted: string | null
+}
+
+/** Management statement for an owner: rents collected, agency fee, his net, what was remitted. */
+export function printOwnerStatement(ownerName: string, label: string, rows: OwnerStatementRow[], total: { collected: number; fees: number; net: number; remitted: number; toRemit: number }, b: BillingSettings, s: Settings) {
+  const td = (v: string, cls = 'num') => `<td class="${cls}">${v}</td>`
+  const body = `${header(s)}
+  <div class="vtitle"><h1>كشف حساب التسيير · Relevé de gérance</h1><div class="no">${esc(ownerName)} · ${esc(label)}</div></div>
+  <table class="v" style="font-size:12px"><thead><tr><th style="width:auto">التاريخ</th><th style="width:auto">الوصل</th><th style="width:auto">المحل</th><th style="width:auto">الشهر</th><th style="width:auto">المحصل</th><th style="width:auto">عمولة التسيير</th><th style="width:auto">الصافي للمالك</th><th style="width:auto">حُوّل في</th></tr></thead><tbody>
+  ${rows.map((r) => `<tr>${td(dmy(r.date))}${td(esc(r.no))}${td(esc(r.ref))}${td(esc(monthName(r.period, 'ar')), '')}${td(money2(r.collected))}${td(money2(r.fee))}<td class="num"><b>${money2(r.net)}</b></td>${td(r.remitted ? dmy(r.remitted) : '—')}</tr>`).join('') || '<tr><td colspan="8">—</td></tr>'}
+  </tbody><tfoot><tr><th colspan="4" style="text-align:right">المجموع بالدرهم</th>${td(money2(total.collected))}${td(money2(total.fees))}<td class="num"><b>${money2(total.net)}</b></td>${td(money2(total.remitted))}</tr></tfoot></table>
+  <div class="clause">الباقي للتحويل إلى المالك: <b class="num">${money2(total.toRemit)} DH</b> · Reste à vous reverser : <b class="num">${money2(total.toRemit)} DH</b></div>
+  <div class="legal">${legalLine(b, s)}</div>`
+  openPrint(`Relevé ${ownerName}`, body)
 }
