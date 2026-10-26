@@ -206,6 +206,11 @@ function SiteForm({ value }: { value: SiteSettings }) {
       <Card title="رسالة واتساب الجاهزة (من صفحة العقار)" className="mt-6">
         <L10nField label="نص الرسالة" value={f.whatsapp_template} onChange={(v) => set('whatsapp_template', v)} multiline rows={2} hint="{ref} = مرجع العقار، {title} = عنوانه. يُضاف رابط العقار تلقائياً." />
       </Card>
+      <Card title="الأثمنة بالأورو" className="mt-6">
+        <Field label="ثمن 1 أورو بالدرهم" hint="سعر إرشادي يظهر للزوار بالفرنسية والإسبانية وفي صفحة مغاربة العالم. حدّثه من أسعار بنك المغرب المرجعية. 0 = لا يظهر الأورو.">
+          <Input type="number" step="0.01" min={0} dir="ltr" className="num w-40" value={f.eur_rate ?? 0} onChange={(e) => set('eur_rate', Number(e.target.value) || 0)} />
+        </Field>
+      </Card>
       <SaveBar pending={pending} onSave={() => void save('site', f, 'الصفحة الرئيسية')} />
     </>
   )
@@ -295,6 +300,8 @@ function AreasForm({ value }: { value: CatalogSettings }) {
               <th>Français</th>
               <th>Español</th>
               <th>العقارات</th>
+              <th title="الثمن المرجعي للمتر المربع عند البيع، يُستعمل في تقدير الثمن ومرصد الأثمنة حين تقل العروض">بيع د.م./م²</th>
+              <th title="الكراء الشهري المرجعي للمتر المربع">كراء د.م./م²</th>
               <th>الموقع</th>
               <th />
             </tr>
@@ -314,6 +321,12 @@ function AreasForm({ value }: { value: CatalogSettings }) {
                     <Input dir="ltr" value={n.name.es} onChange={(e) => upd(i, { ...n, name: { ...n.name, es: e.target.value } })} className="h-9 min-w-[130px] py-1 text-sm" />
                   </td>
                   <td className="num text-center">{u}</td>
+                  <td>
+                    <Input type="number" min={0} dir="ltr" className="num h-9 w-24 py-1 text-sm" value={n.ref_sale_m2 ?? ''} onChange={(e) => upd(i, { ...n, ref_sale_m2: Number(e.target.value) || null })} />
+                  </td>
+                  <td>
+                    <Input type="number" min={0} step="0.5" dir="ltr" className="num h-9 w-20 py-1 text-sm" value={n.ref_rent_m2 ?? ''} onChange={(e) => upd(i, { ...n, ref_rent_m2: Number(e.target.value) || null })} />
+                  </td>
                   <td>
                     <button onClick={() => setPickIdx(pickIdx === i ? null : i)} className="text-xs font-semibold whitespace-nowrap text-teal hover:underline">
                       {pickIdx === i ? 'إغلاق الخريطة' : 'تحديد على الخريطة'}

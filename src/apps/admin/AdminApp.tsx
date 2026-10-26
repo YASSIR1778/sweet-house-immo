@@ -239,7 +239,7 @@ function Shell() {
         { to: '/admin/owners', label: 'ملفات الملاك', icon: FolderLock, badge: mandatesDue, tone: 'gold' },
         { to: '/admin/rentals', label: 'الكراء والتسيير', icon: Key, badge: lateRents, tone: 'danger' },
         { to: '/admin/brokers', label: 'الوسطاء والشركاء', icon: Handshake },
-        { to: '/admin/calculators', label: 'حاسبة المصاريف', icon: Calculator },
+        { to: '/admin/calculators', label: 'الحاسبات والتقدير', icon: Calculator },
       ],
     },
     {

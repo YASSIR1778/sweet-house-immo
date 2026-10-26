@@ -6,6 +6,7 @@ import { FEATURES } from '@/shared/lib/config'
 import { usePublicProperties, usePublicProperty } from '@/shared/lib/data'
 import { fmtNumber, fmtPhone, fmtPrice, telLink, waLink, youtubeId } from '@/shared/lib/format'
 import { repo } from '@/shared/lib/repo'
+import { toEur } from '@/shared/lib/valuation'
 import type { Property } from '@/shared/lib/types'
 import { Badge, Button, ButtonLink, Field, Modal, Skeleton, cn } from '@/shared/ui/base'
 import { Gallery } from '@/shared/ui/gallery'
@@ -169,6 +170,7 @@ export function PropertyPage() {
           <div className="flex flex-col items-start gap-2 lg:items-end">
             <div className="num text-3xl font-extrabold text-navy md:text-4xl">{fmtPrice(p.price, lang, rent)}</div>
             {!rent && p.area ? <div className="num text-sm text-muted">{t('p.pricePerM2', { n: fmtNumber(Math.round(p.price / p.area)) })}</div> : null}
+            {toEur(p.price, s.site.eur_rate ?? 0) ? <div className="num text-sm text-muted">{t('p.eur', { n: fmtNumber(toEur(p.price, s.site.eur_rate ?? 0)!) })}</div> : null}
             <div className="no-print mt-1 flex items-center gap-2">
               <ShareButton title={title} url={propertyUrl(p)} />
               <Button variant="outline" size="sm" onClick={() => window.print()} icon={<Printer className="size-4" />}>

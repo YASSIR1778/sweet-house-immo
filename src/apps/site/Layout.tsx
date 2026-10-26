@@ -46,7 +46,7 @@ function Header() {
     { to: '/biens?purpose=sale', label: t('nav.sale') },
     { to: '/biens?purpose=rent', label: t('nav.rent') },
     { to: '/vendre', label: t('nav.sell') },
-    { to: '/frais', label: t('nav.calc') },
+    { to: '/mre', label: t('nav.mre') },
     { to: '/agence', label: t('nav.agency') },
     { to: '/contact', label: t('nav.contact') },
   ]
@@ -172,8 +172,23 @@ function Footer() {
                 </Link>
               </li>
               <li>
+                <Link to="/estimation" className="hover:text-gold-300">
+                  {t('nav.estimate')}
+                </Link>
+              </li>
+              <li>
+                <Link to="/marche" className="hover:text-gold-300">
+                  {t('nav.market')}
+                </Link>
+              </li>
+              <li>
                 <Link to="/frais" className="hover:text-gold-300">
                   {t('nav.calc')}
+                </Link>
+              </li>
+              <li>
+                <Link to="/mre" className="hover:text-gold-300">
+                  {t('nav.mre')}
                 </Link>
               </li>
               <li>

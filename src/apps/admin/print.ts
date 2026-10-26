@@ -6,6 +6,7 @@ import { translate } from '@/shared/lib/i18n'
 import { amountInWordsFr } from '@/shared/lib/billing'
 import { daysOnMarket } from '@/shared/lib/owners'
 import { depositMax, monthName, rentFor } from '@/shared/lib/rentals'
+import type { Estimate, ValuationInput } from '@/shared/lib/valuation'
 import type { Appointment, BillingSettings, Client, InventoryState, Invoice, Lease, Mandate, OwnerReport, PayMethod, Payment, Property, RentPayment, Settings } from '@/shared/lib/types'
 import { KEYS, MANDATE_KIND, PAY_METHOD, PROPERTY_STATUS } from './labels'
 
@@ -485,4 +486,33 @@ export function printOwnerStatement(ownerName: string, label: string, rows: Owne
   <div class="clause">الباقي للتحويل إلى المالك: <b class="num">${money2(total.toRemit)} DH</b> · Reste à vous reverser : <b class="num">${money2(total.toRemit)} DH</b></div>
   <div class="legal">${legalLine(b, s)}</div>`
   openPrint(`Relevé ${ownerName}`, body)
+}
+
+/* ------------------------------------------------------------------ */
+/* Valuation for an owner (avis de valeur)                              */
+/* ------------------------------------------------------------------ */
+const CONDITION_AR: Record<string, string> = { new: 'جديد أو مجدد', good: 'صالح للسكن', renovate: 'يحتاج إصلاحات' }
+const CONDITION_FR: Record<string, string> = { new: 'neuf ou rénové', good: 'bon état d’usage', renovate: 'à rénover' }
+
+/** An indicative valuation from comparable properties, to hand to an owner. */
+export function printValuation(input: ValuationInput, est: Estimate, s: Settings, hoodName: (id: string) => string) {
+  const rent = input.purpose === 'rent'
+  const unit = rent ? 'DH / mois' : 'DH'
+  const features = input.features.map((f) => FEATURES[f]?.ar ?? f).join('، ')
+  const body = `${header(s)}
+  <div class="vtitle"><h1>رأي في قيمة عقار · Avis de valeur</h1><div class="no">${esc(fmtDate(new Date().toISOString(), 'fr'))}</div></div>
+  <table class="v">
+    ${vrow('العقار', 'Bien', `${esc(translate(`type.${input.type}`, 'ar'))} · ${esc(translate(`type.${input.type}`, 'fr'))} — ${esc(hoodName(input.neighborhood))}`)}
+    ${vrow('المساحة', 'Surface', `<span class="num">${esc(input.area)} m²</span>`)}
+    ${vrow('الحالة', 'État', `${esc(CONDITION_AR[input.condition] ?? '')} · ${esc(CONDITION_FR[input.condition] ?? '')}`)}
+    ${features ? vrow('المميزات', 'Atouts', esc(features)) : ''}
+    ${vrow(rent ? 'الكراء الشهري المقدر' : 'القيمة المقدرة', rent ? 'Loyer estimé' : 'Valeur estimée', `<b class="num" style="font-size:18px">${fmtNumber(est.low)} – ${fmtNumber(est.high)} ${unit}</b><br><small>القيمة الوسطى · valeur centrale : <span class="num">${fmtNumber(est.mid)} ${unit}</span> · <span class="num">${fmtNumber(est.perM2)}</span> ${rent ? 'DH/m²/mois' : 'DH/m²'}</small>`)}
+  </table>
+  ${est.comps.length ? `<table class="v" style="font-size:12px"><thead><tr><th style="width:auto">المرجع</th><th style="width:auto">النوع</th><th style="width:auto">الحي</th><th style="width:auto">المساحة</th><th style="width:auto">الثمن</th><th style="width:auto">للمتر</th></tr></thead><tbody>
+  ${est.comps.map((c) => `<tr><td class="num">${esc(c.ref)}</td><td>${esc(translate(`type.${c.type}`, 'ar'))}</td><td>${esc(hoodName(c.neighborhood))}</td><td class="num">${esc(c.area)} m²</td><td class="num">${fmtNumber(c.price)}</td><td class="num">${fmtNumber(Math.round(c.perM2))}</td></tr>`).join('')}
+  </tbody></table>` : ''}
+  <div class="clause">تقدير إرشادي مبني على أثمنة العقارات المشابهة المعروضة والمباعة لدى الوكالة${est.basis === 'reference' ? ' والأثمنة المرجعية لخبرائها' : ''}، ولا يعد خبرة قانونية. يتأكد الثمن النهائي بعد معاينة العقار ووثائقه.</div>
+  <div class="clause fr">Avis de valeur indicatif fondé sur les prix des biens comparables proposés et vendus par l’agence${est.basis === 'reference' ? ' et sur ses prix de référence' : ''} ; il ne constitue pas une expertise judiciaire. Le prix se confirme après visite du bien et examen de ses documents.</div>
+  <div class="sign one"><div>توقيع وختم الوكالة<br><span class="fr">Cachet et signature de l’agence</span></div></div>`
+  openPrint('Avis de valeur', body)
 }

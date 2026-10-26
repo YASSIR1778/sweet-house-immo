@@ -18,6 +18,9 @@ const Contact = lazy(() => import('./apps/site/pages/Contact').then((m) => ({ de
 const Favorites = lazy(() => import('./apps/site/pages/Favorites').then((m) => ({ default: m.Favorites })))
 const Costs = lazy(() => import('./apps/site/pages/Costs').then((m) => ({ default: m.Costs })))
 const OwnerReportPage = lazy(() => import('./apps/site/pages/OwnerReport').then((m) => ({ default: m.OwnerReportPage })))
+const Estimate = lazy(() => import('./apps/site/pages/Estimate').then((m) => ({ default: m.Estimate })))
+const Market = lazy(() => import('./apps/site/pages/Market').then((m) => ({ default: m.Market })))
+const Mre = lazy(() => import('./apps/site/pages/Mre').then((m) => ({ default: m.Mre })))
 const NotFound = lazy(() => import('./apps/site/pages/NotFound').then((m) => ({ default: m.NotFound })))
 const AdminApp = lazy(() => import('./apps/admin/AdminApp'))
 
@@ -46,6 +49,9 @@ export function App() {
                 <Route path="contact" element={<Contact />} />
                 <Route path="favoris" element={<Favorites />} />
                 <Route path="frais" element={<Costs />} />
+                <Route path="estimation" element={<Estimate />} />
+                <Route path="marche" element={<Market />} />
+                <Route path="mre" element={<Mre />} />
                 <Route path="proprietaire/:token" element={<OwnerReportPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>

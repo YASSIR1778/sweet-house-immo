@@ -14,6 +14,9 @@ export const STORAGE_PREFIX = 'shi'
  * Everything below is only the DEFAULT. The owner edits all of it from
  * the dashboard (Settings) and the values are stored in the database.
  */
+/** Demo only: indicative reference prices per m² (sale, monthly rent). The live site starts empty and the agency fills its own. */
+const demoRef = (sale: number, rent: number) => (LIVE ? {} : { ref_sale_m2: sale, ref_rent_m2: rent })
+
 export const DEFAULT_SETTINGS: Settings = {
   agency: {
     name: { ar: 'سويت هاوس للعقار', fr: 'Sweet House Immobilier', es: 'Sweet House Inmobiliaria' },
@@ -94,6 +97,8 @@ export const DEFAULT_SETTINGS: Settings = {
       fr: 'Mandat exclusif : pendant toute la durée du mandat, le propriétaire s’engage à ne pas confier le bien à un autre intermédiaire et à orienter vers l’agence toute personne qui le contacterait directement au sujet du bien.',
       es: 'Mandato exclusivo: durante todo el mandato, el propietario se compromete a no confiar el inmueble a otro intermediario y a remitir a la agencia a cualquier persona que le contacte directamente por el inmueble.',
     },
+    // Bank Al-Maghrib reference rate was about 11 DH for 1 € in October 2026 (editable in Settings)
+    eur_rate: 11,
     whatsapp_template: {
       ar: 'السلام عليكم، أنا مهتم بالعقار {ref} ({title}). هل يمكن الحصول على مزيد من المعلومات؟',
       fr: 'Bonjour, je suis intéressé(e) par le bien {ref} ({title}). Pourriez-vous m’en dire plus ?',
@@ -103,25 +108,25 @@ export const DEFAULT_SETTINGS: Settings = {
   catalog: {
     ref_prefix: 'SH',
     neighborhoods: [
-      { id: 'medina', name: { ar: 'المدينة القديمة', fr: 'Médina', es: 'Medina' }, lat: 35.5712, lng: -5.3618 },
-      { id: 'centre', name: { ar: 'وسط المدينة (الإنسانتشي)', fr: 'Centre-ville (Ensanche)', es: 'Centro (Ensanche)' }, lat: 35.5735, lng: -5.3698 },
-      { id: 'tabola', name: { ar: 'طابولة', fr: 'Tabola', es: 'Tabola' }, lat: 35.5842, lng: -5.3545 },
-      { id: 'wafa', name: { ar: 'الوفاء', fr: 'Al Wafa', es: 'Al Wafa' }, lat: 35.5888, lng: -5.3447 },
-      { id: 'saniat-rmel', name: { ar: 'سانية الرمل', fr: 'Saniat Rmel', es: 'Saniat Rmel' }, lat: 35.5915, lng: -5.3576 },
-      { id: 'sidi-talha', name: { ar: 'سيدي طلحة', fr: 'Sidi Talha', es: 'Sidi Talha' }, lat: 35.5672, lng: -5.3757 },
-      { id: 'coelma', name: { ar: 'كويلما', fr: 'Coelma', es: 'Coelma' }, lat: 35.5805, lng: -5.3815 },
-      { id: 'boujarrah', name: { ar: 'بوجراح', fr: 'Boujarrah', es: 'Boujarrah' }, lat: 35.5651, lng: -5.3517 },
-      { id: 'jbel-dersa', name: { ar: 'جبل درسة', fr: 'Jbel Dersa', es: 'Jbel Dersa' }, lat: 35.5806, lng: -5.3705 },
-      { id: 'touilaa', name: { ar: 'الطويلع', fr: 'Touilaa', es: 'Touilaa' }, lat: 35.5745, lng: -5.3892 },
-      { id: 'mosalla', name: { ar: 'المصلى', fr: 'El Mosalla', es: 'El Mosalla' }, lat: 35.5768, lng: -5.3772 },
-      { id: 'universite', name: { ar: 'حي الجامعة', fr: 'Quartier universitaire', es: 'Barrio universitario' }, lat: 35.5953, lng: -5.3683 },
-      { id: 'route-martil', name: { ar: 'طريق مرتيل', fr: 'Route de Martil', es: 'Carretera de Martil' }, lat: 35.5968, lng: -5.3225 },
-      { id: 'martil', name: { ar: 'مرتيل', fr: 'Martil', es: 'Martil' }, lat: 35.6174, lng: -5.2749 },
-      { id: 'cabo-negro', name: { ar: 'كابو نيغرو', fr: 'Cabo Negro', es: 'Cabo Negro' }, lat: 35.6655, lng: -5.2845 },
-      { id: 'mdiq', name: { ar: 'المضيق', fr: 'M’diq', es: 'M’diq' }, lat: 35.6853, lng: -5.3245 },
-      { id: 'fnideq', name: { ar: 'الفنيدق', fr: 'Fnideq', es: 'Fnideq' }, lat: 35.8495, lng: -5.3572 },
-      { id: 'azla', name: { ar: 'أزلا', fr: 'Azla', es: 'Azla' }, lat: 35.5584, lng: -5.2437 },
-      { id: 'oued-laou', name: { ar: 'واد لو', fr: 'Oued Laou', es: 'Oued Laou' }, lat: 35.4486, lng: -5.0908 },
+      { id: 'medina', name: { ar: 'المدينة القديمة', fr: 'Médina', es: 'Medina' }, lat: 35.5712, lng: -5.3618, ...demoRef(7000, 38) },
+      { id: 'centre', name: { ar: 'وسط المدينة (الإنسانتشي)', fr: 'Centre-ville (Ensanche)', es: 'Centro (Ensanche)' }, lat: 35.5735, lng: -5.3698, ...demoRef(11000, 55) },
+      { id: 'tabola', name: { ar: 'طابولة', fr: 'Tabola', es: 'Tabola' }, lat: 35.5842, lng: -5.3545, ...demoRef(9000, 45) },
+      { id: 'wafa', name: { ar: 'الوفاء', fr: 'Al Wafa', es: 'Al Wafa' }, lat: 35.5888, lng: -5.3447, ...demoRef(7500, 40) },
+      { id: 'saniat-rmel', name: { ar: 'سانية الرمل', fr: 'Saniat Rmel', es: 'Saniat Rmel' }, lat: 35.5915, lng: -5.3576, ...demoRef(8500, 42) },
+      { id: 'sidi-talha', name: { ar: 'سيدي طلحة', fr: 'Sidi Talha', es: 'Sidi Talha' }, lat: 35.5672, lng: -5.3757, ...demoRef(7500, 38) },
+      { id: 'coelma', name: { ar: 'كويلما', fr: 'Coelma', es: 'Coelma' }, lat: 35.5805, lng: -5.3815, ...demoRef(8000, 40) },
+      { id: 'boujarrah', name: { ar: 'بوجراح', fr: 'Boujarrah', es: 'Boujarrah' }, lat: 35.5651, lng: -5.3517, ...demoRef(6500, 35) },
+      { id: 'jbel-dersa', name: { ar: 'جبل درسة', fr: 'Jbel Dersa', es: 'Jbel Dersa' }, lat: 35.5806, lng: -5.3705, ...demoRef(8000, 40) },
+      { id: 'touilaa', name: { ar: 'الطويلع', fr: 'Touilaa', es: 'Touilaa' }, lat: 35.5745, lng: -5.3892, ...demoRef(7000, 36) },
+      { id: 'mosalla', name: { ar: 'المصلى', fr: 'El Mosalla', es: 'El Mosalla' }, lat: 35.5768, lng: -5.3772, ...demoRef(8500, 42) },
+      { id: 'universite', name: { ar: 'حي الجامعة', fr: 'Quartier universitaire', es: 'Barrio universitario' }, lat: 35.5953, lng: -5.3683, ...demoRef(7500, 45) },
+      { id: 'route-martil', name: { ar: 'طريق مرتيل', fr: 'Route de Martil', es: 'Carretera de Martil' }, lat: 35.5968, lng: -5.3225, ...demoRef(9500, 48) },
+      { id: 'martil', name: { ar: 'مرتيل', fr: 'Martil', es: 'Martil' }, lat: 35.6174, lng: -5.2749, ...demoRef(12000, 60) },
+      { id: 'cabo-negro', name: { ar: 'كابو نيغرو', fr: 'Cabo Negro', es: 'Cabo Negro' }, lat: 35.6655, lng: -5.2845, ...demoRef(15000, 75) },
+      { id: 'mdiq', name: { ar: 'المضيق', fr: 'M’diq', es: 'M’diq' }, lat: 35.6853, lng: -5.3245, ...demoRef(13000, 65) },
+      { id: 'fnideq', name: { ar: 'الفنيدق', fr: 'Fnideq', es: 'Fnideq' }, lat: 35.8495, lng: -5.3572, ...demoRef(7500, 40) },
+      { id: 'azla', name: { ar: 'أزلا', fr: 'Azla', es: 'Azla' }, lat: 35.5584, lng: -5.2437, ...demoRef(9000, 45) },
+      { id: 'oued-laou', name: { ar: 'واد لو', fr: 'Oued Laou', es: 'Oued Laou' }, lat: 35.4486, lng: -5.0908, ...demoRef(6000, 35) },
     ],
   },
   fees: DEFAULT_FEES,

@@ -584,6 +584,10 @@ export interface Neighborhood {
   lat: number
   lng: number
   image?: string
+  /** the agency's reference price per m² for a sale (used when listings are few) */
+  ref_sale_m2?: number | null
+  /** reference monthly rent per m² */
+  ref_rent_m2?: number | null
 }
 
 export interface Testimonial {
@@ -622,6 +626,8 @@ export interface SiteSettings {
   mandate_clause?: L10n
   /** extra paragraph of an exclusive mandate */
   mandate_exclusive?: L10n
+  /** dirhams for one euro, to show indicative prices in € (Moroccans abroad, foreign buyers) */
+  eur_rate?: number
 }
 
 export interface CatalogSettings {

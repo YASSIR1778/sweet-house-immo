@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { PROPERTY_TYPES } from '@/shared/lib/config'
 import { fmtNumber, fmtPrice, pick, waLink } from '@/shared/lib/format'
+import { toEur } from '@/shared/lib/valuation'
 import { repo, type LeadInput } from '@/shared/lib/repo'
 import { isConfigured } from '@/shared/lib/supabase'
 import type { LeadKind, Property, Purpose } from '@/shared/lib/types'
@@ -87,9 +88,11 @@ export function FavButton({ id, className, size = 'md' }: { id: string; classNam
 }
 
 /* ------------------------------------------------------------------ */
-export function PropertyCard({ p, compact }: { p: Property; compact?: boolean }) {
-  const { lang, t, hoodName, typeName } = useSite()
+export function PropertyCard({ p, compact, eur: withEur }: { p: Property; compact?: boolean; eur?: boolean }) {
+  const { s, lang, t, hoodName, typeName } = useSite()
   const rent = p.purpose === 'rent'
+  // French and Spanish visitors (and the page for Moroccans abroad) also see the price in euros
+  const eur = withEur || lang !== 'ar' ? toEur(p.price, s.site.eur_rate ?? 0) : null
   const isNew = Date.now() - new Date(p.created_at).getTime() < 7 * 86400e3
   return (
     <Link to={propertyPath(p)} className="group block overflow-hidden rounded-[18px] border border-line bg-white shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-card">
@@ -113,7 +116,11 @@ export function PropertyCard({ p, compact }: { p: Property; compact?: boolean })
         <div className="absolute inset-x-4 bottom-3 flex items-end justify-between text-white">
           <div>
             <div className="num text-xl font-extrabold leading-none drop-shadow">{fmtPrice(p.price, lang, rent)}</div>
-            {!rent && p.area ? <div className="num mt-1 text-[11px] text-white/80">{t('p.pricePerM2', { n: fmtNumber(Math.round(p.price / p.area)) })}</div> : null}
+            {eur ? (
+              <div className="num mt-1 text-[11px] text-white/80">{t('p.eur', { n: fmtNumber(eur) })}</div>
+            ) : !rent && p.area ? (
+              <div className="num mt-1 text-[11px] text-white/80">{t('p.pricePerM2', { n: fmtNumber(Math.round(p.price / p.area)) })}</div>
+            ) : null}
           </div>
           <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold backdrop-blur">{typeName(p.type)}</span>
         </div>

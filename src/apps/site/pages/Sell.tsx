@@ -1,4 +1,4 @@
-import { Camera, ClipboardCheck, Handshake, Home, Scale, ShieldCheck, Timer } from 'lucide-react'
+import { Camera, ClipboardCheck, Gauge, Handshake, Home, Scale, ShieldCheck, Timer } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useState } from 'react'
 import { Link } from 'react-router'
@@ -109,6 +109,12 @@ export function Sell() {
                 <h3 className="mt-3 text-lg font-bold">{t('why.2.t')}</h3>
                 <p className="mt-1 text-sm text-white/75">{t('why.2.d')}</p>
               </div>
+              <Link to="/estimation" className="block rounded-[18px] border border-teal/30 bg-teal/5 p-6 transition hover:bg-teal/10">
+                <Gauge className="size-8 text-teal" />
+                <h3 className="mt-3 text-lg font-bold text-navy">{t('est.title')}</h3>
+                <p className="mt-1 text-sm text-muted">{t('est.subtitle')}</p>
+                <span className="mt-3 inline-flex text-sm font-bold text-teal">{t('nav.estimate')}</span>
+              </Link>
               <Link to="/frais?tab=seller" className="block rounded-[18px] border border-gold/40 bg-gold/10 p-6 transition hover:bg-gold/15">
                 <Scale className="size-8 text-gold-700" />
                 <h3 className="mt-3 text-lg font-bold text-navy">{t('sell.calc.title')}</h3>
