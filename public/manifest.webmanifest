@@ -1,0 +1,17 @@
+{
+  "name": "Sweet House Immobilier — سويت هاوس للعقار",
+  "short_name": "Sweet House Immo",
+  "id": "/sweet-house-immo/admin/",
+  "start_url": "/sweet-house-immo/admin/",
+  "scope": "/sweet-house-immo/",
+  "display": "standalone",
+  "dir": "rtl",
+  "lang": "ar",
+  "background_color": "#f8f5ee",
+  "theme_color": "#0b1b33",
+  "icons": [
+    { "src": "/sweet-house-immo/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/sweet-house-immo/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/sweet-house-immo/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
