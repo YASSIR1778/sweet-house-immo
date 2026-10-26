@@ -49,7 +49,7 @@ export function Market() {
                         {r.sale != null ? (
                           <>
                             <div className="flex items-center gap-2">
-                              <b className="num w-16 text-navy">{fmtNumber(r.sale)}</b>
+                              <b className="num w-16 text-navy">{fmtNumber(r.sale, lang)}</b>
                               <span className="h-2 flex-1 overflow-hidden rounded-full bg-sand">
                                 <span className="block h-full rounded-full bg-navy" style={{ width: `${Math.round((r.sale / maxSale) * 100)}%` }} />
                               </span>
@@ -64,7 +64,7 @@ export function Market() {
                         {r.rent != null ? (
                           <>
                             <div className="flex items-center gap-2">
-                              <b className="num w-12 text-navy">{fmtNumber(r.rent)}</b>
+                              <b className="num w-12 text-navy">{fmtNumber(r.rent, lang)}</b>
                               <span className="h-2 flex-1 overflow-hidden rounded-full bg-sand">
                                 <span className="block h-full rounded-full bg-gold" style={{ width: `${Math.round((r.rent / maxRent) * 100)}%` }} />
                               </span>
@@ -76,8 +76,8 @@ export function Market() {
                         )}
                       </td>
                       <td className="num px-4 py-3 text-xs text-muted">
-                        {r.sale != null && <div>{fmtNumber(Math.round((r.sale * EXAMPLE_AREA) / 5000) * 5000)} DH</div>}
-                        {r.rent != null && <div>{fmtNumber(Math.round((r.rent * EXAMPLE_AREA) / 50) * 50)} DH / {lang === 'ar' ? 'الشهر' : lang === 'fr' ? 'mois' : 'mes'}</div>}
+                        {r.sale != null && <div>{fmtNumber(Math.round((r.sale * EXAMPLE_AREA) / 5000) * 5000, lang)} {lang === 'en' ? 'MAD' : 'DH'}</div>}
+                        {r.rent != null && <div>{fmtNumber(Math.round((r.rent * EXAMPLE_AREA) / 50) * 50, lang)} {lang === 'en' ? 'MAD' : 'DH'} / {{ ar: 'الشهر', fr: 'mois', es: 'mes', en: 'month' }[lang]}</div>}
                       </td>
                     </tr>
                   ))}

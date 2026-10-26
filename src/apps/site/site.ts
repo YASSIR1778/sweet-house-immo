@@ -18,21 +18,23 @@ export function useSite() {
 export function propertyTitle(p: Property, lang: Lang): string {
   if (lang === 'fr' && p.title_fr) return p.title_fr
   if (lang === 'es' && p.title_es) return p.title_es
+  if (lang === 'en' && (p.title_en || p.title_fr)) return (p.title_en || p.title_fr) as string
   return p.title
 }
 export function propertyDesc(p: Property, lang: Lang): string {
   if (lang === 'fr' && p.description_fr) return p.description_fr
   if (lang === 'es' && p.description_es) return p.description_es
+  if (lang === 'en' && (p.description_en || p.description_fr)) return (p.description_en || p.description_fr) as string
   return p.description
 }
-const CITY_TR: Record<string, { fr: string; es: string }> = {
-  تطوان: { fr: 'Tétouan', es: 'Tetuán' },
-  مرتيل: { fr: 'Martil', es: 'Martil' },
-  المضيق: { fr: 'M’diq', es: 'Rincón (M’diq)' },
-  'كابو نيغرو': { fr: 'Cabo Negro', es: 'Cabo Negro' },
-  الفنيدق: { fr: 'Fnideq', es: 'Castillejos' },
-  أزلا: { fr: 'Azla', es: 'Azla' },
-  'واد لو': { fr: 'Oued Laou', es: 'Oued Laou' },
+const CITY_TR: Record<string, { fr: string; es: string; en: string }> = {
+  تطوان: { fr: 'Tétouan', es: 'Tetuán', en: 'Tetouan' },
+  مرتيل: { fr: 'Martil', es: 'Martil', en: 'Martil' },
+  المضيق: { fr: 'M’diq', es: 'Rincón (M’diq)', en: 'M’diq' },
+  'كابو نيغرو': { fr: 'Cabo Negro', es: 'Cabo Negro', en: 'Cabo Negro' },
+  الفنيدق: { fr: 'Fnideq', es: 'Castillejos', en: 'Fnideq' },
+  أزلا: { fr: 'Azla', es: 'Azla', en: 'Azla' },
+  'واد لو': { fr: 'Oued Laou', es: 'Oued Laou', en: 'Oued Laou' },
 }
 export function cityName(city: string, lang: Lang): string {
   if (lang === 'ar') return city

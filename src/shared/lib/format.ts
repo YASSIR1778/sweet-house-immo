@@ -2,15 +2,18 @@ import type { L10n, Lang } from './types'
 
 export function pick(l: L10n | null | undefined, lang: Lang): string {
   if (!l) return ''
-  return l[lang] || l.ar || l.fr || l.es || ''
+  // English readers get the French text when no English one was written
+  return l[lang] || (lang === 'en' ? l.fr : '') || l.ar || l.fr || l.es || ''
 }
 
 const nf = new Intl.NumberFormat('fr-MA', { maximumFractionDigits: 0 })
 
-/** 1250000 → "1 250 000" (always Latin digits, thin-space grouping). */
-export function fmtNumber(n: number | null | undefined): string {
+const nfEn = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 })
+
+/** 1250000 → "1 250 000" (always Latin digits, thin-space grouping); English readers get "1,250,000". */
+export function fmtNumber(n: number | null | undefined, lang?: Lang): string {
   if (n == null || Number.isNaN(n)) return '—'
-  return nf.format(n).replace(/ | /g, ' ')
+  return (lang === 'en' ? nfEn : nf).format(n).replace(/ | /g, ' ')
 }
 
 const nf2 = new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -21,12 +24,12 @@ export function fmtMoney2(n: number | null | undefined): string {
   return nf2.format(n).replace(/ | /g, ' ')
 }
 
-export const CURRENCY: L10n = { ar: 'د.م.', fr: 'DH', es: 'DH' }
-export const PER_MONTH: L10n = { ar: '/ الشهر', fr: '/ mois', es: '/ mes' }
+export const CURRENCY: L10n = { ar: 'د.م.', fr: 'DH', es: 'DH', en: 'MAD' }
+export const PER_MONTH: L10n = { ar: '/ الشهر', fr: '/ mois', es: '/ mes', en: '/ month' }
 
 export function fmtPrice(n: number | null | undefined, lang: Lang, rent = false): string {
   if (n == null) return '—'
-  const base = `${fmtNumber(n)} ${CURRENCY[lang]}`
+  const base = `${fmtNumber(n, lang)} ${CURRENCY[lang]}`
   return rent ? `${base} ${PER_MONTH[lang]}` : base
 }
 
@@ -34,7 +37,7 @@ export function fmtPrice(n: number | null | undefined, lang: Lang, rent = false)
 export function fmtPriceShort(n: number, lang: Lang): string {
   if (n >= 1_000_000) {
     const m = n / 1_000_000
-    const s = (Math.round(m * 100) / 100).toString().replace('.', lang === 'ar' ? '.' : ',')
+    const s = (Math.round(m * 100) / 100).toString().replace('.', lang === 'ar' || lang === 'en' ? '.' : ',')
     return `${s} M ${CURRENCY[lang]}`
   }
   if (n >= 1_000) return `${Math.round(n / 1_000)} K ${CURRENCY[lang]}`
@@ -46,7 +49,7 @@ export function fmtArea(n: number | null | undefined): string {
   return `${fmtNumber(n)} m²`
 }
 
-const LOCALES: Record<Lang, string> = { ar: 'ar-MA', fr: 'fr-MA', es: 'es-ES' }
+const LOCALES: Record<Lang, string> = { ar: 'ar-MA', fr: 'fr-MA', es: 'es-ES', en: 'en-GB' }
 
 export function fmtDate(iso: string | null | undefined, lang: Lang = 'ar', opts?: Intl.DateTimeFormatOptions): string {
   if (!iso) return '—'

@@ -19,6 +19,7 @@ const SPEC: Record<Lang, { m2: string; beds: string; baths: string; sale: string
   ar: { m2: 'م²', beds: 'غرف نوم', baths: 'حمامات', sale: 'للبيع', rent: 'للكراء' },
   fr: { m2: 'm²', beds: 'chambres', baths: 'SdB', sale: 'À vendre', rent: 'À louer' },
   es: { m2: 'm²', beds: 'dormitorios', baths: 'baños', sale: 'En venta', rent: 'En alquiler' },
+  en: { m2: 'm²', beds: 'bedrooms', baths: 'baths', sale: 'For sale', rent: 'For rent' },
 }
 
 function saveBlob(blob: Blob, name: string) {
@@ -125,7 +126,7 @@ export function ShareKitDialog({ p, onClose }: { p: Property; onClose: () => voi
               { value: 'links', label: <span className="inline-flex items-center gap-1.5"><Link2 className="size-4" /> روابط ومشاركة</span> },
             ]}
           />
-          <Segmented value={lang} onChange={setLang} options={(['ar', 'fr', 'es'] as Lang[]).map((l) => ({ value: l, label: LANG_LABEL[l] }))} />
+          <Segmented value={lang} onChange={setLang} options={(['ar', 'fr', 'es', 'en'] as Lang[]).map((l) => ({ value: l, label: LANG_LABEL[l] }))} />
         </div>
 
         {tab === 'image' && (

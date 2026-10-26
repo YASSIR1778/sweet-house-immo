@@ -32,7 +32,7 @@ export function usePropertyOptions(): ComboOption[] {
         value: p.id,
         label: `${p.ref} — ${p.title}`,
         sub: `${PURPOSE[p.purpose].label} · ${hoodName(p.neighborhood)} · ${fmtPrice(p.price, 'ar', p.purpose === 'rent')}`,
-        keywords: `${p.ref} ${p.title_fr ?? ''} ${p.city}`,
+        keywords: `${p.ref} ${p.title_fr ?? ''} ${p.title_en ?? ''} ${p.city}`,
       })),
     [properties, hoodName],
   )

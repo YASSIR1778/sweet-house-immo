@@ -492,6 +492,16 @@ await as(SEC, async () => {
 })
 await db.query(`update re_push_config set fn_url = null, fn_key = null where id = 1`)
 
+// ------------------------------------------------------------ English
+await db.query(`update re_properties set title_en = 'Apartment for sale — Martil', description_en = 'Sea view.' where id = $1`, [P1])
+await as(null, async () => {
+  await db.query(`insert into re_leads (name, phone, kind, source, lang) values ('Visitor', '0699000088', 'inquiry', 'website', 'en')`)
+  ok('english: a visitor sends a request in English', true)
+  const pub = (await db.query(`select title_en, description_en from re_public_properties() where id = $1`, [P1])).rows[0]
+  ok('english: the public listing carries the English title', pub?.title_en === 'Apartment for sale — Martil' && pub?.description_en === 'Sea view.')
+  await fails('english: an unknown language is still refused', () => db.query(`insert into re_leads (name, phone, source, lang) values ('x', '0699000089', 'website', 'de')`), /check constraint/)
+})
+
 // ------------------------------------------------------------ website visitor (anon)
 const before = await one(`select updated_at from re_properties where id = $1`, [P1])
 await as(null, async () => {

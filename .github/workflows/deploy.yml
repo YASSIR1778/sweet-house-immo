@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # every night: new properties in the sitemap, and the owner's «show on Google» switch applied
+  schedule:
+    - cron: '30 3 * * *'
 
 permissions:
   contents: read

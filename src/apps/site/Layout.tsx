@@ -1,9 +1,10 @@
-import { Clock, Globe, Heart, LockKeyhole, Mail, MapPin, Menu, Phone, X } from 'lucide-react'
+import { ChevronDown, Clock, Globe, Heart, LockKeyhole, Mail, MapPin, Menu, Phone, X } from 'lucide-react'
 import { Suspense, useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router'
 import { PROPERTY_TYPES } from '@/shared/lib/config'
 import { fmtPhone, pick, telLink, waLink } from '@/shared/lib/format'
 import { LANGS } from '@/shared/lib/i18n'
+import type { Lang } from '@/shared/lib/types'
 import { isConfigured } from '@/shared/lib/supabase'
 import { FullSpinner, cn } from '@/shared/ui/base'
 import { FacebookIcon, InstagramIcon, TikTokIcon, WhatsAppIcon } from '@/shared/ui/icons'
@@ -28,6 +29,25 @@ export function LangSwitch({ light }: { light?: boolean }) {
         </button>
       ))}
     </div>
+  )
+}
+
+/** The language as a small menu, for the header bar where four buttons take too much room. */
+function LangSelect({ light }: { light?: boolean }) {
+  const { lang, setLang, t } = useSite()
+  return (
+    <label className={cn('relative inline-flex h-9 cursor-pointer items-center gap-1 rounded-full px-3 text-xs font-bold transition', light ? 'bg-white/15 text-white hover:bg-white/25' : 'bg-navy/5 text-navy hover:bg-navy/10')}>
+      <Globe className="size-3.5 opacity-70" />
+      <span>{lang.toUpperCase()}</span>
+      <ChevronDown className="size-3 opacity-70" />
+      <select value={lang} onChange={(e) => setLang(e.target.value as Lang)} aria-label={t('common.langAuto')} className="absolute inset-0 cursor-pointer opacity-0">
+        {LANGS.map((l) => (
+          <option key={l.code} value={l.code}>
+            {l.label}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }
 
@@ -62,7 +82,7 @@ function Header() {
     <header className={cn('no-print fixed inset-x-0 top-0 z-50 transition-all duration-300', transparent ? 'bg-transparent py-3' : 'glass py-1.5 shadow-soft')}>
       <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-4 md:px-6 2xl:gap-4">
         <Link to="/" className="shrink-0" aria-label={name}>
-          <Logo name={name} sub={lang === 'ar' ? 'Sweet House Immobilier' : 'Tétouan · Martil · M’diq'} light={transparent} size="md" />
+          <Logo name={name} sub={lang === 'ar' ? 'Sweet House Immobilier' : lang === 'en' ? 'Tetouan · Martil · M’diq' : 'Tétouan · Martil · M’diq'} light={transparent} size="md" />
         </Link>
         <nav className="hidden items-center xl:flex 2xl:gap-0.5">
           {links.filter((l) => !l.phone).map((l) => (
@@ -81,7 +101,7 @@ function Header() {
         </nav>
         <div className="flex items-center gap-2">
           <div className="hidden md:block">
-            <LangSwitch light={transparent} />
+            <LangSelect light={transparent} />
           </div>
           <Link to="/favoris" className={cn('relative hidden size-10 items-center justify-center rounded-full transition sm:inline-flex', transparent ? 'text-white hover:bg-white/10' : 'text-navy hover:bg-navy/5')} aria-label={t('nav.favorites')}>
             <Heart className={cn('size-5', ids.length && 'fill-danger text-danger')} />

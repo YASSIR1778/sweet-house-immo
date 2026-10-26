@@ -37,7 +37,7 @@ export function applyFilter(list: Property[], f: PropertyFilter): Property[] {
     if (f.min_area != null && (p.area ?? p.land_area ?? 0) < f.min_area) return false
     if (f.q) {
       const q = f.q.toLowerCase()
-      const hay = `${p.ref} ${p.title} ${p.title_fr ?? ''} ${p.title_es ?? ''} ${p.description} ${p.city} ${p.address ?? ''}`.toLowerCase()
+      const hay = `${p.ref} ${p.title} ${p.title_fr ?? ''} ${p.title_es ?? ''} ${p.title_en ?? ''} ${p.description} ${p.city} ${p.address ?? ''}`.toLowerCase()
       if (!hay.includes(q)) return false
     }
     return true
@@ -158,7 +158,7 @@ export function Listings() {
   const [visible, setVisible] = useState(12)
 
   const title = f.purpose === 'sale' ? t('list.titleSale') : f.purpose === 'rent' ? t('list.titleRent') : t('list.title')
-  usePageMeta(`${title} — ${t('seo.list')}`)
+  usePageMeta(f.purpose ? `${title} — ${t('seo.list')}` : t('seo.list'))
 
   const list = useMemo(() => applyFilter(data ?? [], f), [data, f])
   const set = (k: string, v: string) => {

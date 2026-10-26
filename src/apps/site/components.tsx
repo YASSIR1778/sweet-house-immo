@@ -132,9 +132,9 @@ export function PropertyCard({ p, compact, eur: withEur }: { p: Property; compac
               <div className="num text-xl font-extrabold leading-none drop-shadow">{fmtPrice(p.price, lang, rent)}</div>
             )}
             {eur ? (
-              <div className="num mt-1 text-[11px] text-white/80">{t('p.eur', { n: fmtNumber(eur) })}</div>
+              <div className="num mt-1 text-[11px] text-white/80">{t('p.eur', { n: fmtNumber(eur, lang) })}</div>
             ) : !rent && p.area ? (
-              <div className="num mt-1 text-[11px] text-white/80">{t('p.pricePerM2', { n: fmtNumber(Math.round(p.price / p.area)) })}</div>
+              <div className="num mt-1 text-[11px] text-white/80">{t('p.pricePerM2', { n: fmtNumber(Math.round(p.price / p.area), lang) })}</div>
             ) : null}
           </div>
           <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold backdrop-blur">{typeName(p.type)}</span>
@@ -158,7 +158,7 @@ export function PropertyCard({ p, compact, eur: withEur }: { p: Property; compac
           )}
           {(p.area ?? p.land_area) != null && (
             <span className="inline-flex items-center gap-1">
-              <Maximize2 className="size-4 text-navy/60" /> <span className="num">{fmtNumber(p.area ?? p.land_area)} m²</span>
+              <Maximize2 className="size-4 text-navy/60" /> <span className="num">{fmtNumber(p.area ?? p.land_area, lang)} m²</span>
             </span>
           )}
           <span className="num ms-auto text-xs text-subtle">{p.ref}</span>
@@ -391,7 +391,7 @@ export function LeadForm({ kind, property, children, buildMeta, showMessage = tr
 /* ------------------------------------------------------------------ */
 export function WhatsAppFab() {
   const { s, lang } = useSite()
-  const text = { ar: 'السلام عليكم، أود الاستفسار عن عقار.', fr: 'Bonjour, je souhaite des informations sur un bien.', es: 'Hola, quisiera información sobre un inmueble.' }[lang]
+  const text = { ar: 'السلام عليكم، أود الاستفسار عن عقار.', fr: 'Bonjour, je souhaite des informations sur un bien.', es: 'Hola, quisiera información sobre un inmueble.', en: 'Hello, I would like some information about a property.' }[lang]
   return (
     <a
       href={waLink(s.agency.whatsapp, text)}

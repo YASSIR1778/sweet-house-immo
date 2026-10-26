@@ -63,7 +63,7 @@ export function Properties() {
         inTab(p, tab) &&
         (!purpose || p.purpose === purpose) &&
         (!type || p.type === type) &&
-        (!term || `${p.ref} ${p.title} ${p.title_fr ?? ''} ${hoodName(p.neighborhood)} ${p.city} ${p.address ?? ''}`.toLowerCase().includes(term)),
+        (!term || `${p.ref} ${p.title} ${p.title_fr ?? ''} ${p.title_en ?? ''} ${hoodName(p.neighborhood)} ${p.city} ${p.address ?? ''}`.toLowerCase().includes(term)),
     )
     return out.sort((a, b) =>
       sort === 'price_desc' ? b.price - a.price : sort === 'price_asc' ? a.price - b.price : sort === 'views' ? b.views - a.views : b.updated_at.localeCompare(a.updated_at),

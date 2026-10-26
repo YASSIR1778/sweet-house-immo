@@ -14,7 +14,7 @@ export function Favorites() {
   const { data } = usePublicProperties()
   const list = useMemo(() => (data ?? []).filter((p) => ids.includes(p.id)), [data, ids])
   const text =
-    (lang === 'ar' ? 'السلام عليكم، هذه قائمة العقارات التي تهمني:\n' : lang === 'fr' ? 'Bonjour, voici les biens qui m’intéressent :\n' : 'Hola, estos son los inmuebles que me interesan:\n') +
+    ({ ar: 'السلام عليكم، هذه قائمة العقارات التي تهمني:\n', fr: 'Bonjour, voici les biens qui m’intéressent :\n', es: 'Hola, estos son los inmuebles que me interesan:\n', en: 'Hello, here are the properties I am interested in:\n' }[lang]) +
     list.map((p) => `• ${p.ref} — ${propertyTitle(p, lang)} — ${fmtPrice(p.price, lang, p.purpose === 'rent')}\n${propertyUrl(p)}`).join('\n')
   return (
     <>

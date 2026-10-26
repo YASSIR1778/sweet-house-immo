@@ -1,5 +1,5 @@
-export type Lang = 'ar' | 'fr' | 'es'
-export type L10n = { ar: string; fr: string; es: string }
+export type Lang = 'ar' | 'fr' | 'es' | 'en'
+export type L10n = { ar: string; fr: string; es: string; en: string }
 
 export type Purpose = 'sale' | 'rent'
 export type PropertyType =
@@ -23,9 +23,11 @@ export interface Property {
   title: string
   title_fr: string | null
   title_es: string | null
+  title_en?: string | null
   description: string
   description_fr: string | null
   description_es: string | null
+  description_en?: string | null
   type: PropertyType
   purpose: Purpose
   price: number
@@ -716,6 +718,8 @@ export interface SiteSettings {
   mandate_exclusive?: L10n
   /** dirhams for one euro, to show indicative prices in € (Moroccans abroad, foreign buyers) */
   eur_rate?: number
+  /** the owner lets Google index the site (applied by the nightly rebuild, scripts/postbuild.mjs) */
+  allow_indexing?: boolean
 }
 
 export interface CatalogSettings {

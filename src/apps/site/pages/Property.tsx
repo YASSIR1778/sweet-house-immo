@@ -175,7 +175,7 @@ export function PropertyPage() {
             <p className="mt-2 flex items-center gap-1.5 text-muted">
               <MapPin className="size-4 text-gold-600" /> {placeLabel(hoodName(p.neighborhood), p.city, lang)}
               <span className="num ms-3 inline-flex items-center gap-1 text-xs text-subtle">
-                <Eye className="size-3.5" /> {t('p.views', { n: fmtNumber(p.views) })}
+                <Eye className="size-3.5" /> {t('p.views', { n: fmtNumber(p.views, lang) })}
               </span>
             </p>
           </div>
@@ -185,14 +185,14 @@ export function PropertyPage() {
                 <div className="num text-3xl font-extrabold text-navy md:text-4xl">
                   {t('stay.from', { price: fmtPrice(night, lang) })} <span className="text-base font-semibold text-muted">{t('stay.perNight')}</span>
                 </div>
-                {toEur(night, s.site.eur_rate ?? 0) ? <div className="num text-sm text-muted">{t('p.eur', { n: fmtNumber(toEur(night, s.site.eur_rate ?? 0)!) })}</div> : null}
+                {toEur(night, s.site.eur_rate ?? 0) ? <div className="num text-sm text-muted">{t('p.eur', { n: fmtNumber(toEur(night, s.site.eur_rate ?? 0)!, lang) })}</div> : null}
                 <div className="num text-xs text-subtle">{t('stay.monthly', { price: fmtPrice(p.price, lang) })}</div>
               </>
             ) : (
               <>
                 <div className="num text-3xl font-extrabold text-navy md:text-4xl">{fmtPrice(p.price, lang, rent)}</div>
-                {!rent && p.area ? <div className="num text-sm text-muted">{t('p.pricePerM2', { n: fmtNumber(Math.round(p.price / p.area)) })}</div> : null}
-                {toEur(p.price, s.site.eur_rate ?? 0) ? <div className="num text-sm text-muted">{t('p.eur', { n: fmtNumber(toEur(p.price, s.site.eur_rate ?? 0)!) })}</div> : null}
+                {!rent && p.area ? <div className="num text-sm text-muted">{t('p.pricePerM2', { n: fmtNumber(Math.round(p.price / p.area), lang) })}</div> : null}
+                {toEur(p.price, s.site.eur_rate ?? 0) ? <div className="num text-sm text-muted">{t('p.eur', { n: fmtNumber(toEur(p.price, s.site.eur_rate ?? 0)!, lang) })}</div> : null}
               </>
             )}
             <div className="no-print mt-1 flex items-center gap-2">
@@ -219,8 +219,8 @@ export function PropertyPage() {
               <h2 className="mb-4 text-xl font-bold text-navy">{t('p.details')}</h2>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <Spec icon={<Home className="size-5" />} label={t('search.type')} value={typeName(p.type)} />
-                {p.area != null && <Spec icon={<Maximize2 className="size-5" />} label={t('p.area')} value={`${fmtNumber(p.area)} m²`} />}
-                {p.land_area != null && <Spec icon={<Ruler className="size-5" />} label={t('p.landArea')} value={`${fmtNumber(p.land_area)} m²`} />}
+                {p.area != null && <Spec icon={<Maximize2 className="size-5" />} label={t('p.area')} value={`${fmtNumber(p.area, lang)} m²`} />}
+                {p.land_area != null && <Spec icon={<Ruler className="size-5" />} label={t('p.landArea')} value={`${fmtNumber(p.land_area, lang)} m²`} />}
                 {p.rooms != null && <Spec icon={<Layers className="size-5" />} label={t('p.rooms')} value={p.rooms} />}
                 {p.bedrooms != null && <Spec icon={<BedDouble className="size-5" />} label={t('p.bedrooms')} value={p.bedrooms} />}
                 {p.bathrooms != null && <Spec icon={<Bath className="size-5" />} label={t('p.bathrooms')} value={p.bathrooms} />}
@@ -313,7 +313,7 @@ export function PropertyPage() {
                 </div>
                 <div className="mt-5 border-t border-line pt-5">
                   <h3 className="mb-3 text-sm font-bold text-navy">{t('form.inquiryTitle')}</h3>
-                  <LeadForm kind="inquiry" property={p} compact defaultMessage={lang === 'ar' ? `أنا مهتم بالعقار ${p.ref}.` : lang === 'fr' ? `Je suis intéressé(e) par le bien ${p.ref}.` : `Me interesa el inmueble ${p.ref}.`} />
+                  <LeadForm kind="inquiry" property={p} compact defaultMessage={{ ar: `أنا مهتم بالعقار ${p.ref}.`, fr: `Je suis intéressé(e) par le bien ${p.ref}.`, es: `Me interesa el inmueble ${p.ref}.`, en: `I am interested in the property ${p.ref}.` }[lang]} />
                 </div>
               </div>
               <div className="rounded-[18px] bg-sand p-4 text-xs text-muted">

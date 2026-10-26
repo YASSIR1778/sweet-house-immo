@@ -11,9 +11,24 @@ const BASE = `${ORIGIN}${BASE_PATH}`
 const ROUTES = ['biens', 'sejours', 'vendre', 'estimation', 'marche', 'mre', 'frais', 'agence', 'contact', 'favoris', 'admin']
 
 // Demo build (no database): sample listings must never be indexed by Google.
-// Live build: indexed only once the owner decides (repository variable VITE_ALLOW_INDEXING=true).
+// Live build: indexed only once the owner decides — the switch «الظهور في Google» in the
+// dashboard settings (read here at each build; the site is rebuilt every night) or the
+// repository variable VITE_ALLOW_INDEXING=true.
 const DEMO = !process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_ANON_KEY
-const NOINDEX = DEMO || process.env.VITE_ALLOW_INDEXING !== 'true'
+
+async function ownerAllowsIndexing() {
+  if (DEMO) return false
+  try {
+    const key = process.env.VITE_SUPABASE_ANON_KEY
+    const r = await fetch(`${process.env.VITE_SUPABASE_URL}/rest/v1/re_settings?key=eq.site&select=value`, { headers: { apikey: key, Authorization: `Bearer ${key}` } })
+    if (!r.ok) return false
+    const rows = await r.json()
+    return rows?.[0]?.value?.allow_indexing === true
+  } catch {
+    return false
+  }
+}
+const NOINDEX = DEMO || !(process.env.VITE_ALLOW_INDEXING === 'true' || (await ownerAllowsIndexing()))
 if (NOINDEX) {
   const html = readFileSync(`${DIST}/index.html`, 'utf8').replace('<head>', '<head>\n    <meta name="robots" content="noindex, nofollow" />')
   writeFileSync(`${DIST}/index.html`, html)

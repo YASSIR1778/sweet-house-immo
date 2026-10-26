@@ -1,15 +1,17 @@
-import { ArrowRight, ChevronLeft, ChevronRight, ExternalLink, ImagePlus, Link2, Loader2, Lock, MapPin, Megaphone, Printer, Save, Star, Sun, Trash2, Upload, Video, X } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight, ExternalLink, ImagePlus, Link2, Loader2, Lock, MapPin, Megaphone, Printer, Save, Sparkles, Star, Sun, Trash2, Upload, Video, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 import { FEATURES, PROPERTY_TYPES } from '@/shared/lib/config'
 import { useTable } from '@/shared/lib/data'
+import { describe } from '@/shared/lib/describe'
 import { fmtDate, fmtNumber, nowIso, pick, uid, youtubeId } from '@/shared/lib/format'
 import { resizeImage } from '@/shared/lib/images'
 import { repo } from '@/shared/lib/repo'
 import { currentMandate, mandateState } from '@/shared/lib/owners'
 import type { Mandate, Property, PropertyStatus, PropertyType, Purpose } from '@/shared/lib/types'
-import { Button, Field, FullSpinner, Input, Segmented, Select, Switch, Textarea, cn } from '@/shared/ui/base'
+import { Button, Field, FullSpinner, Input, Segmented, Select, Switch, Textarea, cn, useConfirm } from '@/shared/ui/base'
+import { cityName } from '@/apps/site/site'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { LocationPicker } from '@/shared/ui/map'
 import { useClientOptions } from '../dialogs'
@@ -241,6 +243,7 @@ export function PropertyEditor() {
   const [dirty, setDirty] = useState(false)
   const [refTouched, setRefTouched] = useState(false)
   const [showTr, setShowTr] = useState(false)
+  const confirm = useConfirm()
   const { save, pending } = useSave<Property>('properties', 'property', (p) => `${p.ref} — ${p.title}`)
   const del = useDeleteRow('properties', 'property')
 
@@ -250,7 +253,7 @@ export function PropertyEditor() {
     } else if (existing && (!f || f.id !== existing.id)) {
       setF(existing)
       setDirty(false)
-      setShowTr(Boolean(existing.title_fr || existing.title_es))
+      setShowTr(Boolean(existing.title_fr || existing.title_es || existing.title_en))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNew, isLoading, existing?.id])
@@ -293,7 +296,7 @@ export function PropertyEditor() {
 
   const submit = async () => {
     const missing = [!f.title.trim() && 'العنوان', !(f.price > 0) && 'الثمن', !f.neighborhood && 'الحي'].filter(Boolean)
-    if (missing.length) return toast.error(`أكمل الحقول المطلوبة: ${missing.join('، ')}`)
+    if (missing.length) return toast.error(`أكمل الحقول المطلوبة: ${missing.join('، ')}${!f.title.trim() ? ' (أو اضغط «اكتب العنوان والوصف تلقائياً» في بطاقة الوصف)' : ''}`)
     let ref = f.ref.trim().toUpperCase() || nextRef(props, prefix)
     if (props.some((p) => p.ref === ref && p.id !== f.id)) {
       if (isNew && !refTouched) ref = nextRef(props, prefix)
@@ -307,6 +310,33 @@ export function PropertyEditor() {
     setF(row)
     setDirty(false)
     if (isNew) nav(`/admin/properties/${row.id}`, { replace: true })
+  }
+
+  const autoWrite = async () => {
+    const written = [f.title, f.description, f.title_fr, f.description_fr, f.title_es, f.description_es, f.title_en, f.description_en].some((x) => (x ?? '').trim())
+    if (written && !(await confirm({ title: 'كتابة النصوص من جديد؟', text: 'سيُستبدل العنوان والوصف الحاليان بنص جديد بالعربية والفرنسية والإسبانية والإنجليزية، مكتوب من المعلومات والمزايا المدخلة.', confirmLabel: 'اكتب من جديد' }))) return
+    const n = s.catalog.neighborhoods.find((x) => x.id === f.neighborhood)
+    const hood = { ar: n?.name.ar ?? '', fr: pick(n?.name, 'fr'), es: pick(n?.name, 'es'), en: pick(n?.name, 'en') }
+    const city = { ar: f.city, fr: cityName(f.city, 'fr'), es: cityName(f.city, 'es'), en: cityName(f.city, 'en') }
+    const out = describe(f, { hood, city }, FEATURES)
+    setF((x) =>
+      x
+        ? {
+            ...x,
+            title: out.title.ar,
+            description: out.description.ar,
+            title_fr: out.title.fr,
+            description_fr: out.description.fr,
+            title_es: out.title.es,
+            description_es: out.description.es,
+            title_en: out.title.en,
+            description_en: out.description.en,
+          }
+        : x,
+    )
+    setDirty(true)
+    setShowTr(true)
+    toast.success('كُتب العنوان والوصف بأربع لغات: راجعهما وغيّر ما تشاء ثم احفظ')
   }
 
   const remove = async () => {
@@ -367,7 +397,7 @@ export function PropertyEditor() {
                 ]}
                 className="flex w-full [&>button]:flex-1"
               />
-              <Field label="عنوان الإعلان" required hint="مثال: شقة فاخرة بإطلالة على البحر — مرتيل">
+              <Field label="عنوان الإعلان" required hint="مثال: شقة فاخرة بإطلالة على البحر — مرتيل. أو اتركه واضغط «اكتب تلقائياً» في بطاقة الوصف.">
                 <Input value={f.title} onChange={(e) => set('title', e.target.value)} />
               </Field>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -430,16 +460,26 @@ export function PropertyEditor() {
             <ImageManager images={f.images} onChange={(imgs) => set('images', imgs)} mark={pick(s.agency.name, 'fr') || 'Sweet House'} />
           </Card>
 
-          <Card title="الوصف">
+          <Card
+            title="الوصف"
+            action={
+              <Button size="sm" variant="gold" icon={<Sparkles className="size-4" />} onClick={() => void autoWrite()}>
+                اكتب العنوان والوصف تلقائياً
+              </Button>
+            }
+          >
+            <p className="mb-3 rounded-xl bg-gold/5 p-3 text-xs leading-relaxed text-muted">
+              املأ النوع والحي والمساحة والغرف والمزايا، ثم اضغط «اكتب تلقائياً»: يُكتب العنوان والوصف بالعربية والفرنسية والإسبانية والإنجليزية من هذه المعلومات وحدها. راجع النص وأضف ما يميز العقار.
+            </p>
             <Field label="الوصف بالعربية" hint={`${f.description.length} حرف — صف المزايا، الحالة، القرب من المرافق…`}>
               <Textarea rows={7} value={f.description} onChange={(e) => set('description', e.target.value)} />
             </Field>
             <button type="button" onClick={() => setShowTr((v) => !v)} className="mt-4 text-sm font-semibold text-teal hover:underline">
-              {showTr ? '− إخفاء الترجمة' : '+ إضافة ترجمة فرنسية / إسبانية (لزوار المغاربة المقيمين بالخارج والأجانب)'}
+              {showTr ? '− إخفاء الترجمة' : '+ الترجمة الفرنسية والإسبانية والإنجليزية (لمغاربة العالم والأجانب)'}
             </button>
             {showTr && (
               <div className="mt-4 space-y-4 rounded-2xl border border-line bg-ivory p-4">
-                <p className="text-xs text-muted">الزائر الذي يختار الفرنسية أو الإسبانية يرى هذه الترجمة؛ إن تركتها فارغة يرى النص العربي.</p>
+                <p className="text-xs text-muted">الزائر الذي يختار الفرنسية أو الإسبانية أو الإنجليزية يرى هذه الترجمة؛ إن تركتها فارغة يرى النص العربي (والإنجليزي يرى الفرنسي إن وُجد).</p>
                 <Field label="Titre (FR)">
                   <Input dir="ltr" value={f.title_fr ?? ''} onChange={(e) => set('title_fr', e.target.value || null)} />
                 </Field>
@@ -451,6 +491,12 @@ export function PropertyEditor() {
                 </Field>
                 <Field label="Descripción (ES)">
                   <Textarea dir="ltr" rows={5} value={f.description_es ?? ''} onChange={(e) => set('description_es', e.target.value || null)} />
+                </Field>
+                <Field label="Title (EN)">
+                  <Input dir="ltr" value={f.title_en ?? ''} onChange={(e) => set('title_en', e.target.value || null)} />
+                </Field>
+                <Field label="Description (EN)">
+                  <Textarea dir="ltr" rows={5} value={f.description_en ?? ''} onChange={(e) => set('description_en', e.target.value || null)} />
                 </Field>
               </div>
             )}

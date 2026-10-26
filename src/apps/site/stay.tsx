@@ -15,7 +15,7 @@ import { useSite } from './site'
  * booking request (a lead of kind «booking» that the team turns into a booking).
  */
 
-const LOCALE: Record<Lang, string> = { ar: 'ar-MA-u-nu-latn', fr: 'fr-FR', es: 'es-ES' }
+const LOCALE: Record<Lang, string> = { ar: 'ar-MA-u-nu-latn', fr: 'fr-FR', es: 'es-ES', en: 'en-GB' }
 const utc = (m: string, day = 1) => new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, day))
 const shiftMonth = (m: string, n: number) => {
   const d = utc(m)

@@ -155,7 +155,7 @@ export function movements<T extends Pick<Booking, 'status' | 'check_in' | 'check
 /* ------------------------------------------------------------------ */
 /* WhatsApp messages to the guest, in his language                      */
 /* ------------------------------------------------------------------ */
-const LOCALE: Record<Lang, string> = { ar: 'ar-MA-u-nu-latn', fr: 'fr-FR', es: 'es-ES' }
+const LOCALE: Record<Lang, string> = { ar: 'ar-MA-u-nu-latn', fr: 'fr-FR', es: 'es-ES', en: 'en-GB' }
 
 export function dayLabel(d: string, lang: Lang): string {
   return new Intl.DateTimeFormat(LOCALE[lang] ?? LOCALE.ar, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(toTime(d) + 12 * 3_600_000))
@@ -165,6 +165,7 @@ export function dayLabel(d: string, lang: Lang): string {
 export function nightsText(n: number, lang: Lang): string {
   if (lang === 'fr') return `${n} nuit${n > 1 ? 's' : ''}`
   if (lang === 'es') return `${n} noche${n > 1 ? 's' : ''}`
+  if (lang === 'en') return `${n} night${n > 1 ? 's' : ''}`
   if (n === 1) return 'ليلة واحدة'
   if (n === 2) return 'ليلتان'
   return n <= 10 ? `${n} ليالٍ` : `${n} ليلة`
@@ -173,6 +174,7 @@ export function nightsText(n: number, lang: Lang): string {
 export function guestsText(n: number, lang: Lang): string {
   if (lang === 'fr') return `${n} personne${n > 1 ? 's' : ''}`
   if (lang === 'es') return `${n} persona${n > 1 ? 's' : ''}`
+  if (lang === 'en') return `${n} guest${n > 1 ? 's' : ''}`
   if (n === 1) return 'شخص واحد'
   if (n === 2) return 'شخصان'
   return n <= 10 ? `${n} أشخاص` : `${n} شخصاً`
@@ -196,6 +198,12 @@ const MSG: Record<Lang, { request: string; confirmed: string; reminder: string; 
     confirmed: 'Hola {name}, su reserva en {place} ({ref}) del {in} al {out} ({nights}, {guests}) está confirmada. Total: {total}{paid}. Entrada a partir de las {checkin}, salida antes de las {checkout}. ¡Bienvenidos!\n{agency}',
     reminder: 'Hola {name}, le esperamos el {in} a partir de las {checkin} en {place} ({ref}). Traiga un documento de identidad por cada huésped adulto. ¡Buen viaje!\n{agency}',
     paid: ', de los que ya ha abonado {n}',
+  },
+  en: {
+    request: 'Hello {name}, we have received your booking request for {place} ({ref}) from {in} to {out} ({nights}, {guests}). Total: {total}. To confirm, please pay the deposit of {deposit}.\n{agency}',
+    confirmed: 'Hello {name}, your booking at {place} ({ref}) from {in} to {out} ({nights}, {guests}) is confirmed. Total: {total}{paid}. Check-in from {checkin}, check-out before {checkout}. Welcome!\n{agency}',
+    reminder: 'Hello {name}, we look forward to welcoming you on {in} from {checkin} at {place} ({ref}). Please bring an ID document for each adult guest. Have a good trip!\n{agency}',
+    paid: ', of which {n} already paid',
   },
 }
 

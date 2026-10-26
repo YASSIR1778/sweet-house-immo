@@ -146,8 +146,12 @@ const MSG: Record<Lang, { due: string; late: string }> = {
     due: 'Hola {name}, le recordamos que el alquiler de {month} ({amount}) del inmueble {ref} vence el {date}. Gracias.\n{agency}',
     late: 'Hola {name}, aún no hemos recibido el alquiler de {month} ({amount}) del inmueble {ref}, vencido el {date}. Le rogamos que lo abone lo antes posible. Gracias.\n{agency}',
   },
+  en: {
+    due: 'Hello {name}, a reminder that the rent for {month} ({amount}) for the property {ref} is due on {date}. Thank you.\n{agency}',
+    late: 'Hello {name}, we have not yet received the rent for {month} ({amount}) for the property {ref}, due on {date}. Please settle it as soon as possible. Thank you.\n{agency}',
+  },
 }
-const LOCALE: Record<Lang, string> = { ar: 'ar-MA-u-nu-latn', fr: 'fr-FR', es: 'es-ES' }
+const LOCALE: Record<Lang, string> = { ar: 'ar-MA-u-nu-latn', fr: 'fr-FR', es: 'es-ES', en: 'en-GB' }
 
 export function monthName(period: string, lang: Lang): string {
   const [y, m] = period.split('-').map(Number)

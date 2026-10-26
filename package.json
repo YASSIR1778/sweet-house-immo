@@ -17,7 +17,8 @@
     "test:valuation": "node scripts/test-valuation.mjs",
     "test:social": "node scripts/test-social.mjs",
     "test:seasonal": "node scripts/test-seasonal.mjs",
-    "test:push": "node scripts/test-push.mjs"
+    "test:push": "node scripts/test-push.mjs",
+    "test:describe": "node scripts/test-describe.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.11",

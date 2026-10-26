@@ -1,7 +1,8 @@
 import { defaultChecklist } from './billing'
 import { addMonths, periodOf, periodsBetween } from './rentals'
 import { quote, seasonOf } from './seasonal'
-import { DEMO_USERS } from './config'
+import { DEFAULT_SETTINGS, DEMO_USERS, FEATURES } from './config'
+import { describe } from './describe'
 import type { Activity, Appointment, Booking, Broker, CallLog, Client, Deal, Expense, Invoice, Lead, Lease, Mandate, Offer, Payment, PriceChange, Property, RentPayment, SeasonRates, Staff, Task } from './types'
 
 const img = (id: string, w = 1400) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`
@@ -20,8 +21,17 @@ const ago = (days: number, h = 9, m = 0) => at(-days, h, m)
 type PropertySeed = Omit<Property, 'created_at' | 'updated_at' | 'created_by' | 'views' | 'owner_client_id' | 'video_url' | 'address' | 'private_notes'> &
   Partial<Pick<Property, 'created_at' | 'views' | 'owner_client_id' | 'video_url' | 'address' | 'private_notes'>>
 
+/** The demo listings in English, written like the editor's «write automatically» button does. */
+const CITY_EN: Record<string, string> = { تطوان: 'Tetouan', مرتيل: 'Martil', المضيق: 'M’diq', 'كابو نيغرو': 'Cabo Negro', الفنيدق: 'Fnideq', أزلا: 'Azla', 'واد لو': 'Oued Laou' }
+function english(p: PropertySeed): Pick<Property, 'title_en' | 'description_en'> {
+  const hood = DEFAULT_SETTINGS.catalog.neighborhoods.find((n) => n.id === p.neighborhood)?.name ?? { ar: '', fr: '', es: '', en: '' }
+  const d = describe(p, { hood, city: { ar: p.city, fr: '', es: '', en: CITY_EN[p.city] ?? '' } }, FEATURES)
+  return { title_en: d.title.en, description_en: d.description.en }
+}
+
 function prop(p: PropertySeed, createdDaysAgo: number): Property {
   return {
+    ...english(p),
     address: null,
     video_url: null,
     owner_client_id: null,

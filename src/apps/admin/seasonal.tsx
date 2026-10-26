@@ -332,7 +332,7 @@ export function BookingDialog({ initial = {}, onClose, onSaved }: { initial?: Pa
                 <Input dir="ltr" className="num" value={f.guest_phone ?? ''} onChange={(e) => set('guest_phone', e.target.value || null)} />
               </Field>
               <Field label="لغة الرسائل">
-                <Segmented value={f.guest_lang} onChange={(v) => set('guest_lang', v)} options={(['ar', 'fr', 'es'] as Lang[]).map((l) => ({ value: l, label: LANG_LABEL[l] }))} className="flex w-full [&>button]:flex-1 [&>button]:px-2" />
+                <Segmented value={f.guest_lang} onChange={(v) => set('guest_lang', v)} options={(['ar', 'fr', 'es', 'en'] as Lang[]).map((l) => ({ value: l, label: LANG_LABEL[l] }))} className="flex w-full [&>button]:flex-1 [&>button]:px-2" />
               </Field>
               <Field label="مصدر الحجز">
                 <Select value={f.source} onChange={(e) => set('source', e.target.value as BookingSource)}>

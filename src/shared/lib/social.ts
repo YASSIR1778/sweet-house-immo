@@ -28,11 +28,13 @@ const T: Record<Lang, { sale: string; rent: string; area: string; beds: string; 
   ar: { sale: 'للبيع', rent: 'للكراء', area: 'م²', beds: 'غرف نوم', baths: 'حمامات', ref: 'المرجع', call: 'للاتصال والواتساب', more: 'كل الصور والتفاصيل', base: ['عقارات', 'تطوان', 'سويت_هاوس'] },
   fr: { sale: 'À vendre', rent: 'À louer', area: 'm²', beds: 'chambres', baths: 'salles de bain', ref: 'Réf.', call: 'Appel et WhatsApp', more: 'Toutes les photos et détails', base: ['immobilier', 'Tetouan', 'Maroc'] },
   es: { sale: 'En venta', rent: 'En alquiler', area: 'm²', beds: 'dormitorios', baths: 'baños', ref: 'Ref.', call: 'Llamada y WhatsApp', more: 'Todas las fotos y detalles', base: ['inmobiliaria', 'Tetuan', 'Marruecos'] },
+  en: { sale: 'For sale', rent: 'For rent', area: 'm²', beds: 'bedrooms', baths: 'bathrooms', ref: 'Ref.', call: 'Call & WhatsApp', more: 'All photos and details', base: ['realestate', 'Tetouan', 'Morocco'] },
 }
 const KIND: Record<Lang, { sale: string; rent: string }> = {
   ar: { sale: 'للبيع', rent: 'للكراء' },
   fr: { sale: 'a_vendre', rent: 'a_louer' },
   es: { sale: 'en_venta', rent: 'en_alquiler' },
+  en: { sale: 'for_sale', rent: 'for_rent' },
 }
 
 /** «#مرتيل» from a name: spaces become underscores, punctuation goes. */
@@ -73,6 +75,7 @@ const REVIEW: Record<Lang, string> = {
   ar: 'السلام عليكم {name}، شكراً لثقتكم في {agency}. يسعدنا أن تشاركونا رأيكم في خدمتنا في دقيقة واحدة، فهو يساعد أسراً أخرى على اختيار وكالتها: {link}',
   fr: 'Bonjour {name}, merci pour votre confiance envers {agency}. Votre avis sur notre service (une minute) aide d’autres familles à choisir leur agence : {link}',
   es: 'Hola {name}, gracias por confiar en {agency}. Su opinión sobre nuestro servicio (un minuto) ayuda a otras familias a elegir su agencia: {link}',
+  en: 'Hello {name}, thank you for trusting {agency}. Your opinion of our service (one minute) helps other families choose their agency: {link}',
 }
 
 /** WhatsApp message asking a satisfied client to leave a review (Google, Facebook…). */

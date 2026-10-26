@@ -299,4 +299,4 @@ export const ACTION: Record<string, string> = {
   status: 'غيّر حالة',
 }
 
-export const LANG_LABEL = { ar: 'العربية', fr: 'Français', es: 'Español' } as const
+export const LANG_LABEL = { ar: 'العربية', fr: 'Français', es: 'Español', en: 'English' } as const

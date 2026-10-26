@@ -9,7 +9,7 @@ import { resizeImage } from '@/shared/lib/images'
 import { logActivity, repo, TABLE, type TableName } from '@/shared/lib/repo'
 import { DEFAULT_SETTINGS } from '@/shared/lib/config'
 import type { AgencySettings, CatalogSettings, Lead, Neighborhood, Property, Settings as SettingsT, SiteSettings, Testimonial } from '@/shared/lib/types'
-import { Button, Field, Input, useConfirm } from '@/shared/ui/base'
+import { Button, Field, Input, Switch, useConfirm } from '@/shared/ui/base'
 import { LocationPicker } from '@/shared/ui/map'
 import { errorText, useCan, useMe } from '../hooks'
 import { LEAD_KIND, LEAD_STATUS, PROPERTY_STATUS, SOURCE } from '../labels'
@@ -209,8 +209,14 @@ function SiteForm({ value }: { value: SiteSettings }) {
       <Card title="رسالة واتساب الجاهزة (من صفحة العقار)" className="mt-6">
         <L10nField label="نص الرسالة" value={f.whatsapp_template} onChange={(v) => set('whatsapp_template', v)} multiline rows={2} hint="{ref} = مرجع العقار، {title} = عنوانه. يُضاف رابط العقار تلقائياً." />
       </Card>
+      <Card title="الظهور في Google ومحركات البحث" className="mt-6">
+        <Switch checked={Boolean(f.allow_indexing)} onChange={(v) => set('allow_indexing', v)} label="إظهار الموقع في نتائج Google" />
+        <p className="mt-2 text-xs leading-relaxed text-muted">
+          فعّله بعد إضافة عقاراتك الحقيقية ومعلومات الوكالة. يُحدَّث الموقع تلقائياً كل ليلة: بعد أول تحديث يبدأ Google في قراءته، ويجد كل عقار جديد في خريطة الموقع. الإيقاف يُخفي الموقع من جديد بعد التحديث التالي.
+        </p>
+      </Card>
       <Card title="الأثمنة بالأورو" className="mt-6">
-        <Field label="ثمن 1 أورو بالدرهم" hint="سعر إرشادي يظهر للزوار بالفرنسية والإسبانية وفي صفحة مغاربة العالم. حدّثه من أسعار بنك المغرب المرجعية. 0 = لا يظهر الأورو.">
+        <Field label="ثمن 1 أورو بالدرهم" hint="سعر إرشادي يظهر للزوار بالفرنسية والإسبانية والإنجليزية وفي صفحة مغاربة العالم. حدّثه من أسعار بنك المغرب المرجعية. 0 = لا يظهر الأورو.">
           <Input type="number" step="0.01" min={0} dir="ltr" className="num w-40" value={f.eur_rate ?? 0} onChange={(e) => set('eur_rate', Number(e.target.value) || 0)} />
         </Field>
       </Card>
@@ -265,7 +271,7 @@ function TestimonialsForm({ site }: { site: SiteSettings }) {
           </Card>
         ))}
       </div>
-      <Button variant="outline" className="mt-4" icon={<Plus className="size-4" />} onClick={() => setList((l) => [...l, { name: '', role: { ar: '', fr: '', es: '' }, text: { ar: '', fr: '', es: '' } }])}>
+      <Button variant="outline" className="mt-4" icon={<Plus className="size-4" />} onClick={() => setList((l) => [...l, { name: '', role: { ar: '', fr: '', es: '', en: '' }, text: { ar: '', fr: '', es: '', en: '' } }])}>
         إضافة رأي
       </Button>
       <p className="mt-3 text-xs text-muted">انشر فقط آراء حقيقية لعملائك وبموافقتهم.</p>
@@ -284,7 +290,7 @@ function AreasForm({ value }: { value: CatalogSettings }) {
   const upd = (i: number, n: Neighborhood) => setF((x) => ({ ...x, neighborhoods: x.neighborhoods.map((y, j) => (j === i ? n : y)) }))
   const add = () => {
     const id = `zone-${Date.now().toString(36)}`
-    setF((x) => ({ ...x, neighborhoods: [...x.neighborhoods, { id, name: { ar: '', fr: '', es: '' }, lat: 35.5785, lng: -5.3684 }] }))
+    setF((x) => ({ ...x, neighborhoods: [...x.neighborhoods, { id, name: { ar: '', fr: '', es: '', en: '' }, lat: 35.5785, lng: -5.3684 }] }))
     setPickIdx(f.neighborhoods.length)
   }
   const picked = pickIdx != null ? f.neighborhoods[pickIdx] : null

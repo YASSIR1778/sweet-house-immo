@@ -114,19 +114,19 @@ export function EstimateResult({ input, est, compHref, footer }: { input: Valuat
       <div className="rounded-[22px] bg-navy p-6 text-center text-white shadow-card">
         <div className="text-xs tracking-[0.18em] text-gold-300 uppercase">{t('est.result')}</div>
         <div className="num mt-2 text-3xl font-extrabold md:text-4xl" dir="ltr">
-          {fmtNumber(est.low)} – {fmtNumber(est.high)}
+          {fmtNumber(est.low, lang)} – {fmtNumber(est.high, lang)}
         </div>
-        <div className="mt-1 text-sm text-white/70">{rent ? t('est.perMonth') : lang === 'ar' ? 'درهم' : 'DH'}</div>
+        <div className="mt-1 text-sm text-white/70">{rent ? t('est.perMonth') : lang === 'ar' ? 'درهم' : lang === 'en' ? 'MAD' : 'DH'}</div>
         <div className="mt-3 text-sm">
           {t('est.mid')} <b className="num text-gold-300">{fmtPrice(est.mid, lang, rent)}</b>
-          {eur ? <span className="num ms-2 text-white/60">≈ {fmtNumber(eur)} €</span> : null}
+          {eur ? <span className="num ms-2 text-white/60">≈ {fmtNumber(eur, lang)} €</span> : null}
         </div>
       </div>
       <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
         <div className="flex items-center gap-2 rounded-xl bg-ivory p-3">
           <Ruler className="size-4 text-gold-600" />
           <span>
-            <b className="num">{fmtNumber(est.perM2)}</b> {rent ? t('est.rentM2') : t('est.saleM2')}
+            <b className="num">{fmtNumber(est.perM2, lang)}</b> {rent ? t('est.rentM2') : t('est.saleM2')}
           </span>
         </div>
         <div className="flex items-center gap-2 rounded-xl bg-ivory p-3">
@@ -151,7 +151,7 @@ export function EstimateResult({ input, est, compHref, footer }: { input: Valuat
                 <>
                   <span className="num text-xs font-bold text-gold-700">{c.ref}</span>
                   <span className="flex-1 text-xs text-muted">
-                    {t(`type.${c.type}`)} · <span className="num">{fmtNumber(c.area)} m²</span>
+                    {t(`type.${c.type}`)} · <span className="num">{fmtNumber(c.area, lang)} m²</span>
                   </span>
                   <span className="num text-sm font-bold text-navy">{fmtPrice(c.price, lang, rent)}</span>
                 </>

@@ -72,6 +72,16 @@ const T: Record<Lang, { hello: string; line: string; planned: string; offers: st
     bye: 'Saludos, el equipo de {agency}',
     none: 'No hay ningún inmueble a su nombre por ahora.',
   },
+  en: {
+    hello: 'Hello {name}, here is the update on your property with {agency}:',
+    line: '• {ref} {title}: website views {views}, requests {leads}, viewings done {done}{planned}{offers}. Current price: {price}.',
+    planned: ', viewings planned {n}',
+    offers: ', offers received {n}',
+    feedback: '  Visitor feedback: {hot} of {total} interested, price felt high by {high}.',
+    link: 'Follow everything live here: {link}',
+    bye: 'Kind regards, the {agency} team',
+    none: 'No property is registered in your name at the moment.',
+  },
 }
 
 const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k: string) => String(v[k] ?? ''))
@@ -176,12 +186,14 @@ const FIN: Record<Lang, Record<Financing, string>> = {
   ar: { cash: 'نقداً', loan: 'بقرض بنكي', mixed: 'جزء نقداً وجزء بقرض' },
   fr: { cash: 'comptant', loan: 'par crédit bancaire', mixed: 'en partie comptant, en partie à crédit' },
   es: { cash: 'al contado', loan: 'con préstamo bancario', mixed: 'parte al contado y parte con préstamo' },
+  en: { cash: 'in cash', loan: 'with a bank loan', mixed: 'partly in cash, partly with a bank loan' },
 }
 
 const OFFER: Record<Lang, string> = {
   ar: 'السلام عليكم {name}، توصلنا بعرض جديد على عقاركم {ref}: {amount}، أي {pct}% من الثمن المعروض {price}. طريقة الأداء: {fin}.{cond} ننتظر رأيكم.\nفريق {agency}',
   fr: 'Bonjour {name}, nous avons reçu une nouvelle offre pour votre bien {ref} : {amount}, soit {pct} % du prix demandé ({price}). Paiement : {fin}.{cond} Qu’en pensez-vous ?\nL’équipe {agency}',
   es: 'Hola {name}, hemos recibido una nueva oferta por su inmueble {ref}: {amount}, es decir el {pct} % del precio pedido ({price}). Pago: {fin}.{cond} ¿Qué le parece?\nEl equipo de {agency}',
+  en: 'Hello {name}, we have received a new offer for your property {ref}: {amount}, i.e. {pct}% of the asking price ({price}). Payment: {fin}.{cond} What do you think?\nThe {agency} team',
 }
 
 /** WhatsApp message telling the owner about an offer, in his language. */

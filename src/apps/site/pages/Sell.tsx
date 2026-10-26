@@ -126,7 +126,7 @@ export function Sell() {
                 <h3 className="mt-3 text-lg font-bold text-navy">{t('why.1.t')}</h3>
                 <p className="mt-1 text-sm text-muted">{t('why.1.d')}</p>
               </div>
-              <ButtonLink to={waLink(s.agency.whatsapp, lang === 'ar' ? 'السلام عليكم، أريد بيع/كراء عقاري.' : lang === 'fr' ? 'Bonjour, je souhaite vendre/louer mon bien.' : 'Hola, quiero vender/alquilar mi inmueble.')} external variant="whatsapp" size="lg" className="w-full" icon={<WhatsAppIcon className="size-5" />}>
+              <ButtonLink to={waLink(s.agency.whatsapp, { ar: 'السلام عليكم، أريد بيع/كراء عقاري.', fr: 'Bonjour, je souhaite vendre/louer mon bien.', es: 'Hola, quiero vender/alquilar mi inmueble.', en: 'Hello, I would like to sell or rent out my property.' }[lang])} external variant="whatsapp" size="lg" className="w-full" icon={<WhatsAppIcon className="size-5" />}>
                 {t('cta.whatsapp')}
               </ButtonLink>
             </div>

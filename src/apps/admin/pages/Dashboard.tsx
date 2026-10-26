@@ -10,6 +10,7 @@ import { useQuickAdd } from '../dialogs'
 import { firstName, greeting, useCan, useLookups, useMe, useNames } from '../hooks'
 import { ACTION, APPT_KIND, ENTITY, LEAD_KIND, LEAD_STATUS, LEAD_STATUS_ORDER, SOURCE } from '../labels'
 import { isDone } from '@/shared/lib/billing'
+import { LaunchChecklist } from '../launch'
 import { Avatar, BarRow, Card, MiniEmpty, PageHeader, Pill, Stat } from '../ui'
 
 const MONTHS = (d: Date) => new Intl.DateTimeFormat('ar-MA-u-nu-latn', { month: 'short' }).format(d)
@@ -131,6 +132,7 @@ export function Dashboard() {
           </>
         }
       />
+      {me.role === 'admin' && <LaunchChecklist />}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="عقارات منشورة" value={m.live.length} icon={<Building2 className="size-5" />} hint={`${m.live.filter((p) => p.purpose === 'sale').length} للبيع · ${m.live.filter((p) => p.purpose === 'rent').length} للكراء${m.drafts.length ? ` · ${m.drafts.length} غير منشور` : ''}`} to="/admin/properties" />

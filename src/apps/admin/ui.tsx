@@ -346,12 +346,13 @@ export function Tabs<T extends string>({ tabs, value, onChange, className }: { t
   )
 }
 
-/** Three inputs (AR / FR / ES) for a translated text. */
+/** One input per language (AR / FR / ES / EN) for a translated text. */
 export function L10nField({ label, value, onChange, multiline, rows = 3, hint }: { label: string; value: L10n; onChange: (v: L10n) => void; multiline?: boolean; rows?: number; hint?: string }) {
   const langs: { k: keyof L10n; tag: string; dir: 'rtl' | 'ltr' }[] = [
     { k: 'ar', tag: 'ع', dir: 'rtl' },
     { k: 'fr', tag: 'FR', dir: 'ltr' },
     { k: 'es', tag: 'ES', dir: 'ltr' },
+    { k: 'en', tag: 'EN', dir: 'ltr' },
   ]
   return (
     <div>

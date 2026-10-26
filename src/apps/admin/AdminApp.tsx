@@ -451,7 +451,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
     const digits = phoneKey(s)
     const out: { key: string; group: string; label: string; sub: string; go: () => void }[] = []
     for (const p of props) {
-      if (`${p.ref} ${p.title} ${p.title_fr ?? ''} ${hoodName(p.neighborhood)} ${p.city}`.toLowerCase().includes(s))
+      if (`${p.ref} ${p.title} ${p.title_fr ?? ''} ${p.title_en ?? ''} ${hoodName(p.neighborhood)} ${p.city}`.toLowerCase().includes(s))
         out.push({ key: 'p' + p.id, group: 'العقارات', label: `${p.ref} — ${p.title}`, sub: hoodName(p.neighborhood), go: () => nav(`/admin/properties/${p.id}`) })
       if (out.length >= 6) break
     }

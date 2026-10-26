@@ -168,7 +168,7 @@ create table if not exists public.re_clients (
   wants_types text[] not null default '{}',
   wants_neighborhoods text[] not null default '{}',
   wants_rooms_min int,
-  lang text not null default 'ar' check (lang in ('ar', 'fr', 'es')),
+  lang text not null default 'ar' check (lang in ('ar', 'fr', 'es', 'en')),
   notes text,
   created_by uuid default auth.uid(),
   created_at timestamptz not null default now(),
@@ -237,7 +237,7 @@ create table if not exists public.re_leads (
   assigned_to uuid,
   client_id uuid references public.re_clients (id) on delete set null,
   preferred_at timestamptz,
-  lang text not null default 'ar' check (lang in ('ar', 'fr', 'es')),
+  lang text not null default 'ar' check (lang in ('ar', 'fr', 'es', 'en')),
   meta jsonb check (meta is null or pg_column_size(meta) < 4000),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -698,7 +698,7 @@ create table if not exists public.re_bookings (
   guests int not null default 1 check (guests between 1 and 50),
   guest_name text not null default '',
   guest_phone text,
-  guest_lang text not null default 'ar' check (guest_lang in ('ar', 'fr', 'es')),
+  guest_lang text not null default 'ar' check (guest_lang in ('ar', 'fr', 'es', 'en')),
   guest_id_type text check (guest_id_type in ('cin', 'passport', 'residence', 'other')),
   guest_id_no text,
   guest_nationality text,
@@ -849,22 +849,34 @@ drop trigger if exists re_leads_rate_limit on public.re_leads;
 create trigger re_leads_rate_limit before insert on public.re_leads for each row execute function public.re_leads_rate_limit();
 
 -- ---------------------------------------------------------------------
+-- English: a fourth language for the website, the listings and the messages
+-- ---------------------------------------------------------------------
+alter table public.re_properties add column if not exists title_en text;
+alter table public.re_properties add column if not exists description_en text;
+alter table public.re_clients drop constraint if exists re_clients_lang_check;
+alter table public.re_clients add constraint re_clients_lang_check check (lang in ('ar', 'fr', 'es', 'en'));
+alter table public.re_leads drop constraint if exists re_leads_lang_check;
+alter table public.re_leads add constraint re_leads_lang_check check (lang in ('ar', 'fr', 'es', 'en'));
+alter table public.re_bookings drop constraint if exists re_bookings_guest_lang_check;
+alter table public.re_bookings add constraint re_bookings_guest_lang_check check (guest_lang in ('ar', 'fr', 'es', 'en'));
+
+-- ---------------------------------------------------------------------
 -- Public website: published properties WITHOUT private columns, and a view counter
 -- ---------------------------------------------------------------------
 drop view if exists public.re_public_properties;
--- its columns changed (seasonal rates): the function is replaced as a whole
+-- its columns changed (seasonal rates, English): the function is replaced as a whole
 drop function if exists public.re_public_properties(text);
 
 create or replace function public.re_public_properties(p_ref text default null)
 returns table (
-  id uuid, ref text, title text, title_fr text, title_es text, description text, description_fr text, description_es text,
+  id uuid, ref text, title text, title_fr text, title_es text, title_en text, description text, description_fr text, description_es text, description_en text,
   type text, purpose text, price numeric, area numeric, land_area numeric, rooms int, bedrooms int, bathrooms int,
   floor int, floors int, year_built int, furnished boolean, features text[], neighborhood text, city text, address text,
   lat double precision, lng double precision, images text[], video_url text, status text, featured boolean,
   published boolean, views int, created_at timestamptz, updated_at timestamptz, seasonal boolean, season jsonb
 )
 language sql stable security definer set search_path = public as $$
-  select p.id, p.ref, p.title, p.title_fr, p.title_es, p.description, p.description_fr, p.description_es,
+  select p.id, p.ref, p.title, p.title_fr, p.title_es, p.title_en, p.description, p.description_fr, p.description_es, p.description_en,
          p.type, p.purpose, p.price, p.area, p.land_area, p.rooms, p.bedrooms, p.bathrooms,
          p.floor, p.floors, p.year_built, p.furnished, p.features, p.neighborhood, p.city, p.address,
          p.lat, p.lng, p.images, p.video_url, p.status, p.featured,
