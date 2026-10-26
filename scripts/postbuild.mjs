@@ -8,7 +8,7 @@ const DIST = 'dist'
 const BASE_PATH = (process.env.VITE_BASE ?? '/sweet-house-immo/').replace(/\/$/, '')
 const ORIGIN = process.env.SITE_ORIGIN ?? 'https://yassir1778.github.io'
 const BASE = `${ORIGIN}${BASE_PATH}`
-const ROUTES = ['biens', 'vendre', 'agence', 'contact', 'favoris', 'admin']
+const ROUTES = ['biens', 'vendre', 'frais', 'agence', 'contact', 'favoris', 'admin']
 
 // Demo build (no database): sample listings must never be indexed by Google.
 // Live build: indexed only once the owner decides (repository variable VITE_ALLOW_INDEXING=true).

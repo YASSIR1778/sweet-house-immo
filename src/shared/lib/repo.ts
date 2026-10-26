@@ -1,9 +1,10 @@
 import { DEFAULT_SETTINGS } from './config'
 import { nowIso, uid } from './format'
 import { IMAGES_BUCKET, getSupabase, isConfigured } from './supabase'
-import type { Activity, Lead, Property, SessionUser, Settings } from './types'
+import { DEFAULT_FEES } from './fee-defaults'
+import type { Activity, FeeSettings, Lead, Property, SessionUser, Settings } from './types'
 
-export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity'
+export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers'
 
 export const TABLE: Record<TableName, string> = {
   properties: 're_properties',
@@ -15,7 +16,11 @@ export const TABLE: Record<TableName, string> = {
   calls: 're_calls',
   staff: 're_staff',
   activity: 're_activity',
+  brokers: 're_brokers',
 }
+
+/** Internal settings (never public): read by the team, written with the «settings» permission. */
+export type PrivateKey = 'network'
 
 export interface Row {
   id: string
@@ -36,18 +41,34 @@ export interface Repo {
   submitLead(input: LeadInput): Promise<void>
   getSettings(): Promise<Settings>
   saveSettings<K extends keyof Settings>(key: K, value: Settings[K]): Promise<void>
+  getPrivate<T>(key: PrivateKey): Promise<T | null>
+  savePrivate<T>(key: PrivateKey, value: T): Promise<void>
   uploadImage(blob: Blob, name: string): Promise<string>
   deleteImage(url: string): Promise<void>
   resetDemo(): Promise<void>
 }
 
-function mergeSettings(partial: Partial<Record<keyof Settings, unknown>>): Settings {
-  const o = (x: unknown) => (x && typeof x === 'object' ? (x as object) : {})
-  return {
-    agency: { ...DEFAULT_SETTINGS.agency, ...o(partial.agency) },
-    site: { ...DEFAULT_SETTINGS.site, ...o(partial.site) },
-    catalog: { ...DEFAULT_SETTINGS.catalog, ...o(partial.catalog) },
+const obj = (x: unknown) => (x && typeof x === 'object' && !Array.isArray(x) ? (x as Record<string, unknown>) : {})
+
+/** Saved fees over the defaults, one level deep (a parameter added later keeps its default). */
+function mergeFees(saved: unknown): FeeSettings {
+  const s = obj(saved)
+  const out: Record<string, unknown> = { ...DEFAULT_FEES }
+  for (const [k, def] of Object.entries(DEFAULT_FEES)) {
+    if (!(k in s)) continue
+    out[k] = def && typeof def === 'object' && !Array.isArray(def) ? { ...def, ...obj(s[k]) } : s[k]
   }
+  return out as unknown as FeeSettings
+}
+
+function mergeSettings(partial: Partial<Record<keyof Settings, unknown>>): Settings {
+  return {
+    agency: { ...DEFAULT_SETTINGS.agency, ...obj(partial.agency) },
+    site: { ...DEFAULT_SETTINGS.site, ...obj(partial.site) },
+    catalog: { ...DEFAULT_SETTINGS.catalog, ...obj(partial.catalog) },
+    fees: mergeFees(partial.fees),
+    commission: { ...DEFAULT_SETTINGS.commission, ...obj(partial.commission) },
+  } as Settings
 }
 
 /** Fields that must never reach the public website. */
@@ -98,6 +119,7 @@ class LocalRepo implements Repo {
   async resetDemo() {
     for (const t of Object.keys(TABLE)) localStorage.removeItem(this.key(t))
     localStorage.removeItem('shi:settings')
+    localStorage.removeItem('shi:private:network')
     localStorage.removeItem('shi:seeded')
     this.ready = this.ensureSeed()
     await this.ready
@@ -172,6 +194,21 @@ class LocalRepo implements Repo {
       throw new Error(`quota: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
+  async getPrivate<T>(key: PrivateKey): Promise<T | null> {
+    try {
+      const raw = localStorage.getItem(`shi:private:${key}`)
+      return raw ? (JSON.parse(raw) as T) : null
+    } catch {
+      return null
+    }
+  }
+  async savePrivate<T>(key: PrivateKey, value: T): Promise<void> {
+    try {
+      localStorage.setItem(`shi:private:${key}`, JSON.stringify(value))
+    } catch (e) {
+      throw new Error(`quota: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
   async uploadImage(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
       const r = new FileReader()
@@ -240,6 +277,15 @@ class SupabaseRepo implements Repo {
   }
   async saveSettings<K extends keyof Settings>(key: K, value: Settings[K]): Promise<void> {
     const { error } = await this.sb.from('re_settings').upsert({ key, value, updated_at: nowIso() })
+    if (error) throw error
+  }
+  async getPrivate<T>(key: PrivateKey): Promise<T | null> {
+    const { data, error } = await this.sb.from('re_private').select('value').eq('key', key).maybeSingle()
+    if (error) throw error
+    return ((data as { value: T } | null)?.value ?? null) as T | null
+  }
+  async savePrivate<T>(key: PrivateKey, value: T): Promise<void> {
+    const { error } = await this.sb.from('re_private').upsert({ key, value, updated_at: nowIso() })
     if (error) throw error
   }
   async uploadImage(blob: Blob, name: string): Promise<string> {

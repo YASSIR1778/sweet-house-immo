@@ -52,6 +52,8 @@ export interface Property {
   views: number
   owner_client_id: string | null
   private_notes: string | null
+  /** partner broker who brought this property (never public) */
+  broker_id?: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -75,6 +77,8 @@ export interface Client {
   /** language used for WhatsApp messages */
   lang: Lang
   notes: string | null
+  /** partner broker who brought this client */
+  broker_id?: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -144,11 +148,62 @@ export interface Deal {
   client_id: string | null
   kind: Purpose
   amount: number
+  /** total commission = commission_seller + commission_buyer */
   commission: number
+  /** paid by the owner (seller / landlord) */
+  commission_seller?: number
+  /** paid by the client (buyer / tenant) */
+  commission_buyer?: number
+  /** brokers, referrers and staff bonuses taken from the commission; the rest is the agency's */
+  shares?: DealShare[]
+  /** commission actually collected from the parties so far */
+  received?: number
   notes: string | null
   closed_at: string
   created_by: string | null
   created_at: string
+}
+
+export type ShareParty = 'broker' | 'referrer' | 'staff'
+export type ShareSide = 'listing' | 'client' | 'other'
+export interface DealShare {
+  id: string
+  party: ShareParty
+  /** broker id or staff id */
+  ref_id: string | null
+  /** name kept with the deal (stays readable if the broker is removed) */
+  name: string
+  side: ShareSide
+  /** percent: value = % of the total commission ; fixed: value = dirhams */
+  mode: 'percent' | 'fixed'
+  value: number
+  /** paid to this partner so far (dirhams) */
+  paid: number
+  paid_at: string | null
+}
+
+/* ---------------------------------------------------------------- network */
+export type BrokerKind = 'broker' | 'agency' | 'referrer' | 'developer'
+/** side: the customary share of the side he brought (split equally with other brokers on that side) */
+export type AgreementMode = 'side' | 'percent' | 'fixed'
+export interface Broker {
+  id: string
+  full_name: string
+  phone: string
+  whatsapp: string | null
+  email: string | null
+  kind: BrokerKind
+  company: string | null
+  zones: string[]
+  specialties: string[]
+  agreement_mode: AgreementMode
+  agreement_value: number
+  rating: number | null
+  active: boolean
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface CallLog {
@@ -242,6 +297,85 @@ export interface Settings {
   agency: AgencySettings
   site: SiteSettings
   catalog: CatalogSettings
+  /** Moroccan purchase / sale costs used by the calculators (public, editable) */
+  fees: FeeSettings
+  /** the agency's own fees, as shown to clients (public, editable) */
+  commission: CommissionSettings
+}
+
+/** slice of an amount taxed at `rate` % up to `upTo` dirhams (null = no limit) */
+export interface FeeBracket {
+  upTo: number | null
+  rate: number
+}
+
+/** All rates in %, amounts in dirhams. Defaults: Moroccan law as reviewed in October 2026. */
+export interface FeeSettings {
+  reviewed_at: string
+  registration: {
+    /** built property: housing, commercial, professional (CGI art. 133) */
+    built: number
+    /** bare land or land with buildings to demolish */
+    land: number
+    /** first sale of social / low-value housing by a developer under State agreement */
+    social: number
+    /** extra duty on the part paid in cash (LF 2026) */
+    cash_extra: number
+    cash_threshold: number
+    cash_from: string
+  }
+  /** land registry: sale registration (decree 2.16.375) */
+  conservation: { rate: number; fixed: number; min: number; certificate: number }
+  /** notary: fees are agreed with the notary; these are estimates */
+  notary: { rate: number; min: number; vat: number; disbursements: number }
+  /** bank loan with a mortgage */
+  loan: { brackets: FeeBracket[]; fixed: number; registration: number; bank_rate: number; notary_rate: number }
+  /** releasing a mortgage when selling (mainlevée) */
+  release: { conservation: number; registration: number }
+  /** tax on real estate profits (IR / profits fonciers) */
+  tpi: {
+    rate: number
+    min_rate: number
+    residence_years: number
+    residence_cap: number
+    social_years: number
+    social_cap: number
+    small_cap: number
+    flat_costs: number
+    /** year of the revaluation table below */
+    coef_year: number
+    /** acquisition year → coefficient */
+    coefficients: Record<string, number>
+  }
+  /** direct housing aid (Daam Sakane) shown as information */
+  aid: { enabled: boolean; until: number; tiers: { upTo: number; amount: number }[] }
+}
+
+export interface CommissionSettings {
+  /** sale: % of the price paid by the buyer */
+  sale_buyer: number
+  /** sale: % of the price paid by the seller */
+  sale_seller: number
+  /** long-term rent: months of rent paid by the tenant */
+  rent_tenant: number
+  /** long-term rent: months of rent paid by the owner */
+  rent_owner: number
+  /** VAT added to the commission (0 = none) */
+  vat: number
+  /** minimum per side in dirhams (0 = none) */
+  min_amount: number
+}
+
+/** Internal rules for sharing a commission with partners (never public). */
+export interface NetworkSettings {
+  /** % of the total commission for the side that brought the property */
+  listing_share: number
+  /** % of the total commission for the side that brought the client */
+  client_share: number
+  /** % of the total commission for a referrer who only passed the contact */
+  referrer_share: number
+  /** % of the total commission as a bonus for the employee who closed (0 = none) */
+  staff_bonus: number
 }
 
 export interface PropertyFilter {

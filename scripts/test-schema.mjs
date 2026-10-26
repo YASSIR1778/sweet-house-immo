@@ -195,6 +195,39 @@ await db.query(`delete from re_deals where amount = 2`)
 await db.query(`delete from re_tasks where title = 'مهمة يومية'`)
 await db.query(`delete from re_clients where phone = '0600000008'`)
 
+// ------------------------------------------------------------ partners network and private settings
+let BR
+await as(SEC, async () => {
+  BR = (await one(`insert into re_brokers (full_name, phone, agreement_mode, agreement_value) values ('وسيط', '0611000000', 'percent', 30) returning id`)).id
+  ok('member adds a partner broker', Boolean(BR))
+  const u = await db.query(`update re_brokers set notes = 'شريك قديم' where id = $1`, [BR])
+  ok('member edits a partner', u.affectedRows === 1)
+  const d = await db.query(`delete from re_brokers where id = $1`, [BR])
+  ok('member without «delete» cannot delete a partner', d.affectedRows === 0)
+  await db.query(`update re_properties set broker_id = $1 where id = $2`, [BR, P1])
+  ok('member links a property to its broker', (await one(`select broker_id from re_properties where id = $1`, [P1])).broker_id === BR)
+  ok('member reads private settings', (await count(`select count(*) n from re_private`)) === 0)
+  await fails('member without «settings» cannot write private settings', () => db.query(`insert into re_private (key, value) values ('network', '{}')`), /row-level security/)
+  await fails('unknown agreement mode refused', () => db.query(`insert into re_brokers (full_name, agreement_mode) values ('x', 'gift')`), /check constraint/)
+})
+await as(OWNER, async () => {
+  await db.query(`insert into re_private (key, value) values ('network', '{"listing_share":50,"client_share":50}')`)
+  ok('owner writes private settings', (await count(`select count(*) n from re_private`)) === 1)
+  const dl = (await one(`insert into re_deals (property_id, amount, commission, commission_seller, commission_buyer, shares) values ($1, 1000000, 50000, 25000, 25000, $2::jsonb) returning shares, received`, [P1, JSON.stringify([{ id: 's1', party: 'broker', ref_id: BR, name: 'وسيط', side: 'client', mode: 'percent', value: 30, paid: 0, paid_at: null }])]))
+  ok('deal keeps the shares of its partners', Array.isArray(dl.shares) && dl.shares[0].value === 30 && Number(dl.received) === 0)
+  await db.query(`delete from re_deals where amount = 1000000`)
+  const d = await db.query(`delete from re_brokers where id = $1`, [BR])
+  ok('owner deletes a partner', d.affectedRows === 1)
+})
+ok('deleting a partner keeps the property', (await one(`select broker_id from re_properties where id = $1`, [P1])).broker_id === null)
+await as(null, async () => {
+  ok('anon: partners hidden', (await count(`select count(*) n from re_brokers`)) === 0)
+  ok('anon: private settings hidden', (await count(`select count(*) n from re_private`)) === 0)
+  const pub = await db.query(`select * from re_public_properties()`)
+  ok('anon: no broker on public properties', !pub.fields.some((f) => f.name === 'broker_id'))
+})
+await db.query(`delete from re_private`)
+
 // ------------------------------------------------------------ website visitor (anon)
 const before = await one(`select updated_at from re_properties where id = $1`, [P1])
 await as(null, async () => {

@@ -10,6 +10,7 @@ import type { Property } from '@/shared/lib/types'
 import { Badge, Button, ButtonLink, Field, Modal, Skeleton, cn } from '@/shared/ui/base'
 import { Gallery } from '@/shared/ui/gallery'
 import { LogoMark } from '@/shared/ui/logo'
+import { BuyerCostsBox } from '@/shared/ui/calculators'
 import { PropertyMap } from '@/shared/ui/map'
 import { FavButton, LeadForm, PropertyCard, SectionHead, ShareButton } from '../components'
 import { cityName, jsonLd, placeLabel, propertyDesc, propertyTitle, propertyUrl, usePageMeta, useSite, waPropertyText } from '../site'
@@ -240,6 +241,12 @@ export function PropertyPage() {
             {!rent && p.price > 100_000 && (
               <section className="no-print">
                 <Mortgage price={p.price} />
+              </section>
+            )}
+
+            {!rent && p.price > 0 && (
+              <section className="no-print">
+                <BuyerCostsBox price={p.price} kind={p.type === 'land' ? 'land' : 'built'} to={`/frais?price=${p.price}&kind=${p.type === 'land' ? 'land' : 'built'}`} />
               </section>
             )}
           </div>

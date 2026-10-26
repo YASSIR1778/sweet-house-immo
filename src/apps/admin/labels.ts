@@ -1,4 +1,4 @@
-import type { AppointmentKind, AppointmentStatus, ClientKind, LeadKind, LeadSource, LeadStatus, PropertyStatus, Purpose, Role, TaskPriority } from '@/shared/lib/types'
+import type { AgreementMode, AppointmentKind, AppointmentStatus, BrokerKind, ClientKind, LeadKind, LeadSource, LeadStatus, PropertyStatus, Purpose, Role, ShareParty, ShareSide, TaskPriority } from '@/shared/lib/types'
 
 export interface Lbl {
   label: string
@@ -75,6 +75,41 @@ export const PRIORITY: Record<TaskPriority, Lbl> = {
   high: { label: 'مستعجلة', color: '#b91c1c' },
 }
 
+export const BROKER_KIND: Record<BrokerKind, Lbl> = {
+  broker: { label: 'وسيط عقاري', color: '#0f766e' },
+  agency: { label: 'وكالة شريكة', color: '#1d4ed8' },
+  referrer: { label: 'مُرشد', color: '#a8832f' },
+  developer: { label: 'منعش عقاري', color: '#7c3aed' },
+}
+
+export const AGREEMENT: Record<AgreementMode, string> = {
+  side: 'حصة الجانب حسب العرف',
+  percent: 'نسبة من العمولة',
+  fixed: 'مبلغ ثابت لكل صفقة',
+}
+
+export const SIDE: Record<ShareSide, string> = {
+  listing: 'جانب العقار',
+  client: 'جانب الزبون',
+  other: 'أخرى',
+}
+
+export const SHARE_PARTY: Record<ShareParty, Lbl> = {
+  broker: { label: 'وسيط', color: '#0f766e' },
+  referrer: { label: 'مُرشد', color: '#a8832f' },
+  staff: { label: 'مكافأة موظف', color: '#1d4ed8' },
+}
+
+export const SPECIALTIES: { value: string; label: string }[] = [
+  { value: 'sale', label: 'البيع' },
+  { value: 'rent', label: 'الكراء' },
+  { value: 'seasonal', label: 'الكراء الموسمي' },
+  { value: 'land', label: 'الأراضي' },
+  { value: 'villa', label: 'الفيلات' },
+  { value: 'commercial', label: 'المحلات والمكاتب' },
+  { value: 'new', label: 'المشاريع الجديدة' },
+]
+
 export const ROLE: Record<Role, string> = {
   admin: 'المدير',
   secretary: 'موظف',
@@ -90,6 +125,7 @@ export const ENTITY: Record<string, string> = {
   deal: 'صفقة',
   settings: 'الإعدادات',
   staff: 'عضو الفريق',
+  broker: 'شريك',
   session: 'الجلسة',
 }
 

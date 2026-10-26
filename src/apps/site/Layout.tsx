@@ -46,6 +46,7 @@ function Header() {
     { to: '/biens?purpose=sale', label: t('nav.sale') },
     { to: '/biens?purpose=rent', label: t('nav.rent') },
     { to: '/vendre', label: t('nav.sell') },
+    { to: '/frais', label: t('nav.calc') },
     { to: '/agence', label: t('nav.agency') },
     { to: '/contact', label: t('nav.contact') },
   ]
@@ -168,6 +169,11 @@ function Footer() {
               <li>
                 <Link to="/vendre" className="hover:text-gold-300">
                   {t('nav.sell')}
+                </Link>
+              </li>
+              <li>
+                <Link to="/frais" className="hover:text-gold-300">
+                  {t('nav.calc')}
                 </Link>
               </li>
               <li>

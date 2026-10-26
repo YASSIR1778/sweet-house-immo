@@ -1,7 +1,8 @@
-import { BadgeDollarSign, Download, HandCoins, Plus, Receipt, TrendingUp } from 'lucide-react'
+import { BadgeDollarSign, Download, HandCoins, Handshake, Plus, Receipt, TrendingUp, Wallet } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { agencyNet, shareAmount, sharesTotal } from '@/shared/lib/commission'
 import { useTable } from '@/shared/lib/data'
 import { download, fmtDate, fmtNumber, toCsv } from '@/shared/lib/format'
 import type { Deal } from '@/shared/lib/types'
@@ -31,6 +32,9 @@ export function Deals() {
       return x.getFullYear() === now.getFullYear() && x.getMonth() === now.getMonth()
     })
     const total = inYear.reduce((s, d) => s + d.commission, 0)
+    const partners = inYear.reduce((s, d) => s + sharesTotal(d.shares ?? [], d.commission), 0)
+    const owedPartners = deals.reduce((s, d) => s + (d.shares ?? []).reduce((a, x) => a + Math.max(0, shareAmount(x, d.commission) - (x.paid || 0)), 0), 0)
+    const toCollect = deals.reduce((s, d) => s + Math.max(0, d.commission - (d.received ?? d.commission)), 0)
     const chart = Array.from({ length: 12 }, (_, i) => {
       const ds = inYear.filter((d) => new Date(d.closed_at).getMonth() === i)
       return {
@@ -42,6 +46,10 @@ export function Deals() {
     return {
       inYear,
       total,
+      partners,
+      net: total - partners,
+      owedPartners,
+      toCollect,
       month: thisMonth.reduce((s, d) => s + d.commission, 0),
       volume: inYear.filter((d) => d.kind === 'sale').reduce((s, d) => s + d.amount, 0),
       avg: inYear.length ? Math.round(total / inYear.length) : 0,
@@ -61,7 +69,13 @@ export function Deals() {
           العقار: L.property(d.property_id)?.ref ?? '',
           العميل: L.client(d.client_id)?.full_name ?? '',
           المبلغ: d.amount,
+          'من البائع': d.commission_seller ?? 0,
+          'من المشتري': d.commission_buyer ?? d.commission,
           العمولة: d.commission,
+          'حصص الشركاء': sharesTotal(d.shares ?? [], d.commission),
+          'صافي الوكالة': agencyNet(d.commission, d.shares ?? []),
+          'الشركاء': (d.shares ?? []).map((x) => x.name).join('، '),
+          المحصل: d.received ?? d.commission,
           ملاحظات: d.notes,
         })),
       ),
@@ -72,7 +86,7 @@ export function Deals() {
     <>
       <PageHeader
         title="الصفقات والعمولات"
-        subtitle="خاص بالمدير — لا تراه الكاتبة"
+        subtitle="العمولات، حصص الشركاء، وما يبقى للوكالة"
         icon={<HandCoins className="size-6" />}
         actions={
           <>
@@ -100,6 +114,11 @@ export function Deals() {
         <Stat label="عدد الصفقات" value={m.inYear.length} hint={`${m.sales} بيع · ${m.rents} كراء`} icon={<Receipt className="size-5" />} accent="#a8832f" />
         <Stat label="متوسط العمولة" value={fmtNumber(m.avg)} hint={`حجم مبيعات ${fmtNumber(m.volume)} د.م.`} icon={<BadgeDollarSign className="size-5" />} />
       </div>
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Stat label={`صافي الوكالة ${year}`} value={fmtNumber(m.net)} hint={`بعد ${fmtNumber(m.partners)} د.م. للشركاء`} icon={<Wallet className="size-5" />} accent="#15803d" />
+        <Stat label="مستحقات الشركاء غير المؤداة" value={fmtNumber(m.owedPartners)} hint="كل السنوات" icon={<Handshake className="size-5" />} accent="#b91c1c" to="/admin/brokers" />
+        <Stat label="عمولات لم تُحصَّل بعد" value={fmtNumber(m.toCollect)} hint="من البائعين والمشترين" icon={<Receipt className="size-5" />} accent="#b45309" />
+      </div>
 
       <Card title={`العمولات حسب الشهر — ${year}`} className="mt-6">
         <div dir="ltr" className="h-[280px]">
@@ -126,6 +145,8 @@ export function Deals() {
               <th>العميل</th>
               <th>المبلغ</th>
               <th>العمولة</th>
+              <th>للشركاء</th>
+              <th>صافي الوكالة</th>
               <th>ملاحظات</th>
             </tr>
           </thead>
@@ -150,14 +171,21 @@ export function Deals() {
                   </td>
                   <td className="text-sm">{c?.full_name ?? '—'}</td>
                   <td className="num whitespace-nowrap">{fmtNumber(d.amount)}</td>
-                  <td className="num font-bold whitespace-nowrap text-success">{fmtNumber(d.commission)}</td>
+                  <td className="num font-bold whitespace-nowrap text-navy">
+                    {fmtNumber(d.commission)}
+                    {(d.received ?? d.commission) < d.commission && <div className="text-[11px] font-semibold text-warning">باقي {fmtNumber(d.commission - (d.received ?? 0))}</div>}
+                  </td>
+                  <td className="num whitespace-nowrap text-muted" title={(d.shares ?? []).map((x) => x.name).join('، ')}>
+                    {fmtNumber(sharesTotal(d.shares ?? [], d.commission))}
+                  </td>
+                  <td className="num font-bold whitespace-nowrap text-success">{fmtNumber(agencyNet(d.commission, d.shares ?? []))}</td>
                   <td className="max-w-[240px] truncate text-sm text-muted">{d.notes ?? ''}</td>
                 </tr>
               )
             })}
             {m.inYear.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-10 text-center text-muted">
+                <td colSpan={9} className="py-10 text-center text-muted">
                   لا توجد صفقات في {year}
                 </td>
               </tr>
@@ -169,7 +197,9 @@ export function Deals() {
                 <td colSpan={5} className="font-bold text-navy">
                   المجموع
                 </td>
-                <td className="num font-extrabold text-success">{fmtNumber(m.total)}</td>
+                <td className="num font-extrabold text-navy">{fmtNumber(m.total)}</td>
+                <td className="num font-bold text-muted">{fmtNumber(m.partners)}</td>
+                <td className="num font-extrabold text-success">{fmtNumber(m.net)}</td>
                 <td />
               </tr>
             </tfoot>

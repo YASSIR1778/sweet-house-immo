@@ -318,6 +318,48 @@ create table if not exists public.re_activity (
 create index if not exists re_activity_created_idx on public.re_activity (created_at desc);
 
 -- ---------------------------------------------------------------------
+-- Partners network: brokers, partner agencies, referrers, developers
+-- agreement_mode: side = the customary share of the side he brought (split with the other
+-- brokers of that side) ; percent = agreement_value % of the commission ; fixed = dirhams per deal
+-- ---------------------------------------------------------------------
+create table if not exists public.re_brokers (
+  id uuid primary key default gen_random_uuid(),
+  full_name text not null,
+  phone text not null default '',
+  whatsapp text,
+  email text,
+  kind text not null default 'broker' check (kind in ('broker', 'agency', 'referrer', 'developer')),
+  company text,
+  zones text[] not null default '{}',
+  specialties text[] not null default '{}',
+  agreement_mode text not null default 'side' check (agreement_mode in ('side', 'percent', 'fixed')),
+  agreement_value numeric not null default 0 check (agreement_value >= 0),
+  rating int check (rating between 1 and 5),
+  active boolean not null default true,
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- who brought a property / a client (never shown on the website)
+alter table public.re_properties add column if not exists broker_id uuid references public.re_brokers (id) on delete set null;
+alter table public.re_clients add column if not exists broker_id uuid references public.re_brokers (id) on delete set null;
+
+-- commission of each party and its sharing with partners (the rest is the agency's)
+alter table public.re_deals add column if not exists commission_seller numeric not null default 0;
+alter table public.re_deals add column if not exists commission_buyer numeric not null default 0;
+alter table public.re_deals add column if not exists shares jsonb not null default '[]'::jsonb;
+alter table public.re_deals add column if not exists received numeric not null default 0;
+
+-- internal settings (commission sharing rules…): team only, never public
+create table if not exists public.re_private (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------
 -- updated_at (a page view does not count as an edit)
 -- ---------------------------------------------------------------------
 create or replace function public.re_touch() returns trigger
@@ -337,6 +379,8 @@ drop trigger if exists re_touch_clients on public.re_clients;
 create trigger re_touch_clients before update on public.re_clients for each row execute function public.re_touch();
 drop trigger if exists re_touch_leads on public.re_leads;
 create trigger re_touch_leads before update on public.re_leads for each row execute function public.re_touch();
+drop trigger if exists re_touch_brokers on public.re_brokers;
+create trigger re_touch_brokers before update on public.re_brokers for each row execute function public.re_touch();
 
 -- ---------------------------------------------------------------------
 -- Anti-spam: at most 3 website requests per phone number every 10 minutes
@@ -400,6 +444,26 @@ alter table public.re_tasks enable row level security;
 alter table public.re_calls enable row level security;
 alter table public.re_deals enable row level security;
 alter table public.re_activity enable row level security;
+alter table public.re_brokers enable row level security;
+alter table public.re_private enable row level security;
+
+-- partners: every member reads and adds them; deleting needs the «delete» permission
+drop policy if exists re_brokers_select on public.re_brokers;
+create policy re_brokers_select on public.re_brokers for select to authenticated using ((select public.re_is_staff()));
+drop policy if exists re_brokers_insert on public.re_brokers;
+create policy re_brokers_insert on public.re_brokers for insert to authenticated with check ((select public.re_is_staff()));
+drop policy if exists re_brokers_update on public.re_brokers;
+create policy re_brokers_update on public.re_brokers for update to authenticated using ((select public.re_is_staff())) with check ((select public.re_is_staff()));
+drop policy if exists re_brokers_delete on public.re_brokers;
+create policy re_brokers_delete on public.re_brokers for delete to authenticated using ((select public.re_can('delete')));
+
+-- internal settings: the team reads, the «settings» permission writes
+drop policy if exists re_private_select on public.re_private;
+create policy re_private_select on public.re_private for select to authenticated using ((select public.re_is_staff()));
+drop policy if exists re_private_insert on public.re_private;
+create policy re_private_insert on public.re_private for insert to authenticated with check ((select public.re_can('settings')));
+drop policy if exists re_private_update on public.re_private;
+create policy re_private_update on public.re_private for update to authenticated using ((select public.re_can('settings'))) with check ((select public.re_can('settings')));
 
 -- staff: everyone in the team sees the team; only admins change roles, permissions and activation.
 -- Log-ins (e-mail + password) are created by the Edge Function «re-staff» (supabase/functions).

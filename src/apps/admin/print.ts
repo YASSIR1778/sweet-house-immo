@@ -136,3 +136,40 @@ export function printVisitVoucher(a: Appointment, p: Property | undefined, c: Cl
   <div class="small">${esc(pick(s.agency.address, 'ar'))} · ${esc(fmtPhone(s.agency.phone))}</div>`
   openPrint(`Bon de visite ${no}`, body)
 }
+
+export interface StatementRow {
+  date: string
+  ref: string
+  kind: string
+  amount: number
+  commission: number
+  share: number
+  paid: number
+}
+
+/** Account statement of a partner: his share of each deal, what was paid, what is left. */
+export function printPartnerStatement(name: string, sub: string, rows: StatementRow[], s: Settings) {
+  const total = rows.reduce((a, r) => a + r.share, 0)
+  const paid = rows.reduce((a, r) => a + r.paid, 0)
+  const td = (v: string | number, num = true) => `<td${num ? ' class="num"' : ''}>${esc(v)}</td>`
+  const body = `${header(s)}
+  <div class="vtitle"><h1>كشف حساب الشريك</h1><div class="no">${esc(name)}${sub ? ` · ${esc(sub)}` : ''} · ${esc(fmtDate(new Date().toISOString()))}</div></div>
+  <table class="v" style="font-size:12px"><thead><tr><th style="width:auto">التاريخ</th><th style="width:auto">العقار</th><th style="width:auto">النوع</th><th style="width:auto">ثمن الصفقة</th><th style="width:auto">العمولة</th><th style="width:auto">حصتك</th><th style="width:auto">المدفوع</th><th style="width:auto">الباقي</th></tr></thead><tbody>
+  ${rows.map((r) => `<tr>${td(fmtDate(r.date))}${td(r.ref || '—')}${td(r.kind, false)}${td(fmtNumber(r.amount))}${td(fmtNumber(r.commission))}<td class="num"><b>${esc(fmtNumber(r.share))}</b></td>${td(fmtNumber(r.paid))}${td(fmtNumber(Math.max(0, r.share - r.paid)))}</tr>`).join('')}
+  </tbody><tfoot><tr><th colspan="5" style="text-align:right">المجموع بالدرهم</th><td class="num"><b>${esc(fmtNumber(total))}</b></td><td class="num">${esc(fmtNumber(paid))}</td><td class="num"><b>${esc(fmtNumber(Math.max(0, total - paid)))}</b></td></tr></tfoot></table>
+  <div class="sign"><div>توقيع الشريك<br><span class="fr">Signature du partenaire</span></div><div>توقيع وختم الوكالة<br><span class="fr">Signature et cachet de l’agence</span></div></div>`
+  openPrint(`كشف حساب ${name}`, body)
+}
+
+/** A cost estimate to hand to a client (buyer or seller). */
+export function printCostQuote(title: string, intro: string, rows: { label: string; amount: number; note?: string }[], totals: { label: string; amount: number; strong?: boolean }[], notes: string[], s: Settings) {
+  const body = `${header(s)}
+  <div class="vtitle"><h1>${esc(title)}</h1><div class="no">${esc(fmtDate(new Date().toISOString()))}</div></div>
+  <p style="font-size:13px;color:#5b6475">${esc(intro)}</p>
+  <table class="v"><tbody>
+  ${rows.map((r) => `<tr><th>${esc(r.label)}${r.note ? `<small>${esc(r.note)}</small>` : ''}</th><td class="num" style="text-align:left">${esc(fmtNumber(r.amount))} DH</td></tr>`).join('')}
+  ${totals.map((t) => `<tr><th style="background:${t.strong ? '#0b1b33;color:#fff' : '#efe8d8'}">${esc(t.label)}</th><td class="num" style="text-align:left;font-weight:800;${t.strong ? 'font-size:16px' : ''}">${esc(fmtNumber(t.amount))} DH</td></tr>`).join('')}
+  </tbody></table>
+  ${notes.map((n) => `<div class="clause">${esc(n)}</div>`).join('')}`
+  openPrint(title, body)
+}

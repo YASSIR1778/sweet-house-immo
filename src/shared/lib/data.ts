@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { DEFAULT_SETTINGS } from './config'
+import { DEFAULT_NETWORK } from './fee-defaults'
 import { repo, type Row, type TableName } from './repo'
-import type { Property, Settings } from './types'
+import type { NetworkSettings, Property, Settings } from './types'
 
 export function useTable<T extends Row>(table: TableName, opts?: { enabled?: boolean; refetchInterval?: number }) {
   return useQuery({
@@ -44,6 +45,27 @@ export function useRemove(table: TableName) {
 
 export function useSettings() {
   return useQuery({ queryKey: ['settings'], queryFn: () => repo.getSettings(), placeholderData: DEFAULT_SETTINGS, staleTime: 60_000 })
+}
+
+/** Internal commission-sharing rules (team only), over the customary defaults. */
+export function useNetwork(enabled = true) {
+  return useQuery({
+    queryKey: ['private', 'network'],
+    queryFn: async () => ({ ...DEFAULT_NETWORK, ...((await repo.getPrivate<Partial<NetworkSettings>>('network')) ?? {}) }) as NetworkSettings,
+    placeholderData: DEFAULT_NETWORK,
+    staleTime: 60_000,
+    enabled,
+  })
+}
+
+export function useSaveNetwork() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (value: NetworkSettings) => repo.savePrivate('network', value),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['private', 'network'] })
+    },
+  })
 }
 
 export function useSaveSettings() {

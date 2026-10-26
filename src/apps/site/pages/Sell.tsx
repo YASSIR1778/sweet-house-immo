@@ -1,6 +1,7 @@
-import { Camera, ClipboardCheck, Handshake, Home, ShieldCheck, Timer } from 'lucide-react'
+import { Camera, ClipboardCheck, Handshake, Home, Scale, ShieldCheck, Timer } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { PROPERTY_TYPES } from '@/shared/lib/config'
 import { pick, waLink } from '@/shared/lib/format'
 import type { LeadKind } from '@/shared/lib/types'
@@ -108,6 +109,12 @@ export function Sell() {
                 <h3 className="mt-3 text-lg font-bold">{t('why.2.t')}</h3>
                 <p className="mt-1 text-sm text-white/75">{t('why.2.d')}</p>
               </div>
+              <Link to="/frais?tab=seller" className="block rounded-[18px] border border-gold/40 bg-gold/10 p-6 transition hover:bg-gold/15">
+                <Scale className="size-8 text-gold-700" />
+                <h3 className="mt-3 text-lg font-bold text-navy">{t('sell.calc.title')}</h3>
+                <p className="mt-1 text-sm text-muted">{t('sell.calc.text')}</p>
+                <span className="mt-3 inline-flex text-sm font-bold text-teal">{t('sell.calc.cta')}</span>
+              </Link>
               <div className="rounded-[18px] border border-line bg-white p-6">
                 <Home className="size-8 text-gold-600" />
                 <h3 className="mt-3 text-lg font-bold text-navy">{t('why.1.t')}</h3>

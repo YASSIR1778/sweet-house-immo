@@ -16,6 +16,7 @@ const Sell = lazy(() => import('./apps/site/pages/Sell').then((m) => ({ default:
 const Agency = lazy(() => import('./apps/site/pages/Agency').then((m) => ({ default: m.Agency })))
 const Contact = lazy(() => import('./apps/site/pages/Contact').then((m) => ({ default: m.Contact })))
 const Favorites = lazy(() => import('./apps/site/pages/Favorites').then((m) => ({ default: m.Favorites })))
+const Costs = lazy(() => import('./apps/site/pages/Costs').then((m) => ({ default: m.Costs })))
 const NotFound = lazy(() => import('./apps/site/pages/NotFound').then((m) => ({ default: m.NotFound })))
 const AdminApp = lazy(() => import('./apps/admin/AdminApp'))
 
@@ -43,6 +44,7 @@ export function App() {
                 <Route path="agence" element={<Agency />} />
                 <Route path="contact" element={<Contact />} />
                 <Route path="favoris" element={<Favorites />} />
+                <Route path="frais" element={<Costs />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
               <Route

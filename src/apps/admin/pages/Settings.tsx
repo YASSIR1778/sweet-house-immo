@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, Building, Database, Download, FileText, Globe, MapPinned, MessageSquareQuote, Plus, RotateCcw, Save, Settings as SettingsIcon, Trash2, Upload } from 'lucide-react'
+import { ArrowDown, ArrowUp, Building, Database, Download, FileText, Globe, Handshake, Landmark, MapPinned, MessageSquareQuote, Plus, RotateCcw, Save, Settings as SettingsIcon, Trash2, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useSaveSettings, useSettings, useTable } from '@/shared/lib/data'
@@ -12,8 +12,9 @@ import { LocationPicker } from '@/shared/ui/map'
 import { errorText, useCan, useMe } from '../hooks'
 import { LEAD_KIND, LEAD_STATUS, PROPERTY_STATUS, SOURCE } from '../labels'
 import { Card, L10nField, PageHeader, Tabs } from '../ui'
+import { CommissionTab, FeesTab } from './settings-fees'
 
-type Tab = 'agency' | 'site' | 'testimonials' | 'areas' | 'docs' | 'data'
+type Tab = 'agency' | 'site' | 'testimonials' | 'areas' | 'docs' | 'commission' | 'fees' | 'data'
 
 function useSaveSection() {
   const { mutateAsync, isPending } = useSaveSettings()
@@ -56,6 +57,8 @@ export function Settings() {
           { value: 'testimonials', label: <span className="inline-flex items-center gap-1.5"><MessageSquareQuote className="size-4" /> آراء العملاء</span> },
           { value: 'areas', label: <span className="inline-flex items-center gap-1.5"><MapPinned className="size-4" /> المناطق والمراجع</span> },
           { value: 'docs', label: <span className="inline-flex items-center gap-1.5"><FileText className="size-4" /> الوثائق</span> },
+          { value: 'commission', label: <span className="inline-flex items-center gap-1.5"><Handshake className="size-4" /> العمولات والشركاء</span> },
+          { value: 'fees', label: <span className="inline-flex items-center gap-1.5"><Landmark className="size-4" /> المصاريف والضرائب</span> },
           { value: 'data', label: <span className="inline-flex items-center gap-1.5"><Database className="size-4" /> البيانات والنسخ</span> },
         ]}
       />
@@ -65,6 +68,8 @@ export function Settings() {
         {tab === 'testimonials' && <TestimonialsForm key={JSON.stringify(s.site.testimonials)} site={s.site} />}
         {tab === 'areas' && <AreasForm key={JSON.stringify(s.catalog)} value={s.catalog} />}
         {tab === 'docs' && <DocsForm key={JSON.stringify(s.site.visit_clause)} site={s.site} />}
+        {tab === 'commission' && <CommissionTab />}
+        {tab === 'fees' && <FeesTab />}
         {tab === 'data' && <DataTab />}
       </div>
     </>

@@ -3,12 +3,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { toast } from 'sonner'
 import { PROPERTY_TYPES } from '@/shared/lib/config'
 import { useTable } from '@/shared/lib/data'
-import { addDays, combineDateTime, fmtNumber, fmtPrice, localDate, localTime, nowIso, startOfDay, uid, waLink } from '@/shared/lib/format'
-import type { Appointment, AppointmentKind, AppointmentStatus, CallLog, Client, ClientKind, Deal, Lang, Lead, LeadKind, LeadSource, Property, PropertyType, Purpose, Task, TaskPriority } from '@/shared/lib/types'
+import { addDays, combineDateTime, fmtPrice, localDate, localTime, nowIso, startOfDay, uid, waLink } from '@/shared/lib/format'
+import type { Appointment, AppointmentKind, AppointmentStatus, Broker, CallLog, Client, ClientKind, Deal, Lang, Lead, LeadKind, LeadSource, PropertyType, Purpose, Task, TaskPriority } from '@/shared/lib/types'
 import { Button, Field, Input, Modal, Segmented, Select, Switch, Textarea } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
-import { useCan, useDeleteRow, useLookups, useMe, useNames, useSave } from './hooks'
+import { useDeleteRow, useLookups, useMe, useNames, useSave } from './hooks'
 import { APPT_KIND, APPT_STATUS, CLIENT_KIND, LANG_LABEL, LEAD_KIND, PRIORITY, PURPOSE, SOURCE } from './labels'
+import { BrokerDialog, DealDialog, useBrokerOptions } from './network-dialogs'
 import { printVisitVoucher } from './print'
 import { visitReminder } from './templates'
 import { Chips, Combo, type ComboOption } from './ui'
@@ -64,7 +65,7 @@ export function StaffSelect({ value, onChange, allowEmpty = true }: { value: str
 /* ------------------------------------------------------------------ */
 /* Quick-add provider: any page can open any form                       */
 /* ------------------------------------------------------------------ */
-export type QuickKind = 'appointment' | 'call' | 'client' | 'task' | 'deal' | 'lead'
+export type QuickKind = 'appointment' | 'call' | 'client' | 'task' | 'deal' | 'lead' | 'broker'
 interface InitialMap {
   appointment: Partial<Appointment>
   call: Partial<CallLog>
@@ -72,6 +73,7 @@ interface InitialMap {
   task: Partial<Task>
   deal: Partial<Deal>
   lead: Partial<Lead>
+  broker: Partial<Broker>
 }
 type Opener = <K extends QuickKind>(kind: K, initial?: InitialMap[K], onSaved?: (row: unknown) => void) => void
 
@@ -91,6 +93,7 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
       {req?.kind === 'task' && <TaskDialog key={req.key} initial={req.initial as Partial<Task>} onClose={close} onSaved={saved} />}
       {req?.kind === 'deal' && <DealDialog key={req.key} initial={req.initial as Partial<Deal>} onClose={close} onSaved={saved} />}
       {req?.kind === 'lead' && <LeadDialog key={req.key} initial={req.initial as Partial<Lead>} onClose={close} onSaved={saved} />}
+      {req?.kind === 'broker' && <BrokerDialog key={req.key} initial={req.initial as Partial<Broker>} onClose={close} onSaved={saved} />}
     </QuickCtx.Provider>
   )
 }
@@ -587,6 +590,7 @@ export function ClientDialog({ initial = {}, onClose, onSaved }: { initial?: Par
   const dup = L.clientByPhone(f.phone)
   const isDup = Boolean(dup && dup.id !== f.id)
   const { save, pending } = useSave<Client>('clients', 'client', (c) => c.full_name)
+  const brokerOptions = useBrokerOptions(['broker', 'agency', 'referrer'])
 
   const setKind = (k: ClientKind) => setF((x) => ({ ...x, kind: k, wants_purpose: k === 'tenant' ? 'rent' : k === 'owner' ? null : 'sale' }))
 
@@ -650,6 +654,9 @@ export function ClientDialog({ initial = {}, onClose, onSaved }: { initial?: Par
                 </option>
               ))}
             </Select>
+          </Field>
+          <Field label="جاء عن طريق وسيط أو شريك" hint="تُقترح حصته تلقائياً عند تسجيل الصفقة" className="sm:col-span-2">
+            <Combo value={f.broker_id ?? null} onChange={(v) => set('broker_id', v)} options={brokerOptions} placeholder="لا أحد: زبون مباشر" />
           </Field>
         </div>
 
@@ -805,164 +812,6 @@ export function TaskDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
             <Switch checked={f.noDate} onChange={(v) => set('noDate', v)} label="بدون تاريخ" />
           </div>
         </div>
-      </div>
-    </Modal>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/* Deal (owner only)                                                    */
-/* ------------------------------------------------------------------ */
-export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Partial<Deal>; onClose: () => void; onSaved?: (d: Deal) => void }) {
-  const me = useMe()
-  const can = useCan()
-  const L = useLookups()
-  const propertyOptions = usePropertyOptions()
-  const clientOptions = useClientOptions()
-  const isNew = !initial.id
-  const [f, setF] = useState({
-    id: initial.id ?? uid(),
-    property_id: initial.property_id ?? null,
-    client_id: initial.client_id ?? null,
-    kind: (initial.kind ?? 'sale') as Purpose,
-    amount: initial.amount ?? 0,
-    commission: initial.commission ?? 0,
-    closed_at: localDate(initial.closed_at ?? new Date()),
-    notes: initial.notes ?? '',
-  })
-  const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }))
-  const [rate, setRate] = useState<string>(initial.amount && initial.commission ? String(Math.round((initial.commission / initial.amount) * 10000) / 100) : '2.5')
-  const [markProperty, setMarkProperty] = useState(isNew)
-  const deal = useSave<Deal>('deals', 'deal', (d) => `${L.property(d.property_id)?.ref ?? 'صفقة'} — ${fmtNumber(d.amount)} د.م.`)
-  const prop = useSave<Property>('properties', 'property', (p) => p.ref)
-  const del = useDeleteRow('deals', 'deal')
-  const p = L.property(f.property_id)
-
-  const pickProperty = (id: string | null) => {
-    const x = L.property(id)
-    setF((s) => ({ ...s, property_id: id, kind: x?.purpose ?? s.kind, amount: x?.price ?? s.amount, commission: x ? (x.purpose === 'rent' ? x.price : Math.round((x.price * Number(rate || 0)) / 100)) : s.commission }))
-    if (x?.purpose === 'rent') setRate('100')
-  }
-  const applyRate = (r: string) => {
-    setRate(r)
-    const n = Number(r)
-    if (Number.isFinite(n)) set('commission', Math.round((f.amount * n) / 100))
-  }
-
-  if (!can('deals')) return null
-
-  const submit = async () => {
-    if (!f.amount || f.amount <= 0) return toast.error('أدخل مبلغ الصفقة')
-    const row: Deal = {
-      id: f.id,
-      property_id: f.property_id,
-      client_id: f.client_id,
-      kind: f.kind,
-      amount: f.amount,
-      commission: f.commission,
-      notes: f.notes.trim() || null,
-      closed_at: combineDateTime(f.closed_at, '12:00'),
-      created_by: initial.created_by ?? me.id,
-      created_at: initial.created_at ?? nowIso(),
-    }
-    const saved = await deal.save(row, { isNew })
-    if (!saved) return
-    if (markProperty && p) {
-      await prop.save({ ...p, status: f.kind === 'rent' ? 'rented' : 'sold', published: false, featured: false, updated_at: nowIso() }, { action: 'status', silent: true, meta: { status: f.kind === 'rent' ? 'rented' : 'sold' } })
-    }
-    onSaved?.(saved)
-    onClose()
-  }
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      size="lg"
-      title={isNew ? 'تسجيل صفقة' : 'تعديل الصفقة'}
-      footer={
-        <>
-          {!isNew && (
-            <Button
-              variant="ghost"
-              className="me-auto text-danger"
-              icon={<Trash2 className="size-4" />}
-              onClick={async () => {
-                if (await del(f.id, 'الصفقة')) onClose()
-              }}
-            >
-              حذف
-            </Button>
-          )}
-          <Button variant="ghost" onClick={onClose}>
-            إلغاء
-          </Button>
-          <Button loading={deal.pending} onClick={submit}>
-            حفظ الصفقة
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="العقار">
-            <Combo value={f.property_id} onChange={pickProperty} options={propertyOptions} placeholder="اختر العقار" />
-          </Field>
-          <Field label="العميل (المشتري / المكتري)">
-            <Combo value={f.client_id} onChange={(v) => set('client_id', v)} options={clientOptions} placeholder="اختياري" />
-          </Field>
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Field label="نوع الصفقة">
-            <Segmented
-              value={f.kind}
-              onChange={(v) => set('kind', v)}
-              options={[
-                { value: 'sale', label: 'بيع' },
-                { value: 'rent', label: 'كراء' },
-              ]}
-              className="flex w-full [&>button]:flex-1"
-            />
-          </Field>
-          <Field label={f.kind === 'rent' ? 'ثمن الكراء الشهري' : 'ثمن البيع'}>
-            <Input
-              type="number"
-              inputMode="numeric"
-              dir="ltr"
-              className="num"
-              value={f.amount || ''}
-              onChange={(e) => {
-                const a = Number(e.target.value) || 0
-                setF((x) => ({ ...x, amount: a, commission: Math.round((a * Number(rate || 0)) / 100) }))
-              }}
-            />
-          </Field>
-          <Field label="تاريخ الإنجاز">
-            <Input type="date" dir="ltr" className="num" value={f.closed_at} onChange={(e) => set('closed_at', e.target.value)} />
-          </Field>
-        </div>
-        <div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-3">
-          <Field label="نسبة العمولة %">
-            <Input type="number" step="0.1" dir="ltr" className="num" value={rate} onChange={(e) => applyRate(e.target.value)} />
-          </Field>
-          <Field label="العمولة (د.م.)">
-            <Input type="number" inputMode="numeric" dir="ltr" className="num font-bold" value={f.commission || ''} onChange={(e) => set('commission', Number(e.target.value) || 0)} />
-          </Field>
-          <div className="flex flex-wrap gap-1.5 pb-1">
-            {['2', '2.5', '3'].map((r) => (
-              <button key={r} type="button" onClick={() => applyRate(r)} className="num rounded-full border border-line-2 px-3 py-1.5 text-xs font-semibold hover:border-navy">
-                {r}%
-              </button>
-            ))}
-            <button type="button" onClick={() => applyRate('100')} className="rounded-full border border-line-2 px-3 py-1.5 text-xs font-semibold hover:border-navy">
-              شهر كراء
-            </button>
-          </div>
-        </div>
-        <Field label="ملاحظات">
-          <Textarea rows={2} value={f.notes} onChange={(e) => set('notes', e.target.value)} />
-        </Field>
-        {p && isNew && <Switch checked={markProperty} onChange={setMarkProperty} label={`تغيير حالة ${p.ref} إلى «${f.kind === 'rent' ? 'مُكترى' : 'مُباع'}» وإخفاؤه من الموقع`} />}
       </div>
     </Modal>
   )

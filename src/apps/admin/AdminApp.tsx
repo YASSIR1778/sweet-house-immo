@@ -25,6 +25,8 @@ import {
   PhoneIncoming,
   Building,
   BadgeDollarSign,
+  Calculator,
+  Handshake,
   type LucideIcon,
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -34,18 +36,20 @@ import { useAuth } from '@/shared/lib/auth'
 import { useTable } from '@/shared/lib/data'
 import { phoneKey, sameDay } from '@/shared/lib/format'
 import { I18nProvider } from '@/shared/lib/i18n'
-import type { Appointment, Client, Lead, Permission, Property, Task } from '@/shared/lib/types'
+import type { Appointment, Broker, Client, Lead, Permission, Property, Task } from '@/shared/lib/types'
 import { Badge, FullSpinner, cn } from '@/shared/ui/base'
 import { Logo } from '@/shared/ui/logo'
 import { Login, Pending, ResetPassword } from './auth-screens'
 import { ChangePasswordDialog } from './change-password'
 import { QuickAddProvider, useQuickAdd } from './dialogs'
 import { useCan, useMe, useNames } from './hooks'
-import { CLIENT_KIND, LEAD_STATUS, ROLE } from './labels'
+import { BROKER_KIND, CLIENT_KIND, LEAD_STATUS, ROLE } from './labels'
 import { Avatar, DropMenu, Pill } from './ui'
 
 const Activity = lazy(() => import('./pages/Activity').then((m) => ({ default: m.Activity })))
 const Agenda = lazy(() => import('./pages/Agenda').then((m) => ({ default: m.Agenda })))
+const Brokers = lazy(() => import('./pages/Brokers').then((m) => ({ default: m.Brokers })))
+const Calculators = lazy(() => import('./pages/Calculators').then((m) => ({ default: m.Calculators })))
 const Calls = lazy(() => import('./pages/Calls').then((m) => ({ default: m.Calls })))
 const Clients = lazy(() => import('./pages/Clients').then((m) => ({ default: m.Clients })))
 const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })))
@@ -204,6 +208,8 @@ function Shell() {
       items: [
         { to: '/admin/properties', label: 'العقارات', icon: Building2 },
         { to: '/admin/clients', label: 'العملاء', icon: Users },
+        { to: '/admin/brokers', label: 'الوسطاء والشركاء', icon: Handshake },
+        { to: '/admin/calculators', label: 'حاسبة المصاريف', icon: Calculator },
       ],
     },
     {
@@ -225,6 +231,7 @@ function Shell() {
     { label: 'تسجيل مكالمة', icon: <PhoneIncoming className="size-4" />, onClick: () => quick('call') },
     { label: 'عميل جديد', icon: <UserPlus className="size-4" />, onClick: () => quick('client') },
     { label: 'مهمة', icon: <ClipboardPlus className="size-4" />, onClick: () => quick('task') },
+    { label: 'شريك في الشبكة', icon: <Handshake className="size-4" />, onClick: () => quick('broker') },
     { label: 'تسجيل صفقة', icon: <BadgeDollarSign className="size-4" />, onClick: () => quick('deal'), hidden: !can('deals') },
   ]
 
@@ -312,6 +319,8 @@ function Shell() {
             <Route path="properties/:id" element={<PropertyEditor />} />
             <Route path="leads" element={<Leads />} />
             <Route path="clients" element={<Clients />} />
+            <Route path="brokers" element={<Brokers />} />
+            <Route path="calculators" element={<Calculators />} />
             <Route path="agenda" element={<Agenda />} />
             <Route path="tasks" element={<Tasks />} />
             <Route path="calls" element={<Calls />} />
@@ -367,6 +376,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
   const { data: props = [] } = useTable<Property>('properties')
   const { data: clients = [] } = useTable<Client>('clients')
   const { data: leads = [] } = useTable<Lead>('leads')
+  const { data: brokers = [] } = useTable<Broker>('brokers')
   const [q, setQ] = useState('')
   const [active, setActive] = useState(0)
 
@@ -394,8 +404,15 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
         if (++n >= 5) break
       }
     }
+    n = 0
+    for (const b of brokers) {
+      if (`${b.full_name} ${b.company ?? ''}`.toLowerCase().includes(s) || (digits.length >= 4 && phoneKey(b.phone).includes(digits))) {
+        out.push({ key: 'b' + b.id, group: 'الشركاء', label: b.full_name, sub: `${BROKER_KIND[b.kind].label}${b.company ? ` · ${b.company}` : ''}`, go: () => nav(`/admin/brokers?open=${b.id}`) })
+        if (++n >= 4) break
+      }
+    }
     return out
-  }, [q, props, clients, leads, hoodName, nav])
+  }, [q, props, clients, leads, brokers, hoodName, nav])
 
   useEffect(() => setActive(0), [q])
   useEffect(() => {

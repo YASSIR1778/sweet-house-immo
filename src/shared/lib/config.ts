@@ -1,3 +1,4 @@
+import { DEFAULT_COMMISSION, DEFAULT_FEES } from './fee-defaults'
 import type { Permission, Settings } from './types'
 
 /** Live site (Supabase configured): no sample figures or testimonials — only what the owner enters. */
@@ -113,6 +114,8 @@ export const DEFAULT_SETTINGS: Settings = {
       { id: 'oued-laou', name: { ar: 'واد لو', fr: 'Oued Laou', es: 'Oued Laou' }, lat: 35.4486, lng: -5.0908 },
     ],
   },
+  fees: DEFAULT_FEES,
+  commission: DEFAULT_COMMISSION,
 }
 
 /** Property feature ids with their labels (fixed list, translated). */

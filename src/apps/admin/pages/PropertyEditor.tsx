@@ -12,6 +12,7 @@ import { Button, Field, FullSpinner, Input, Segmented, Select, Switch, Textarea,
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { LocationPicker } from '@/shared/ui/map'
 import { useClientOptions } from '../dialogs'
+import { useBrokerOptions } from '../network-dialogs'
 import { errorText, nextRef, useCan, useDeleteRow, useMe, useNames, useSave } from '../hooks'
 import { PROPERTY_STATUS } from '../labels'
 import { printPropertySheet } from '../print'
@@ -200,6 +201,7 @@ export function PropertyEditor() {
   const { data: props = [], isLoading } = useTable<Property>('properties')
   const { s, hoodName, typeName } = useNames()
   const ownerOptions = useClientOptions()
+  const brokerOptions = useBrokerOptions()
   const existing = id ? props.find((p) => p.id === id) : undefined
   const [f, setF] = useState<Property | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -534,6 +536,9 @@ export function PropertyEditor() {
               <div className="space-y-4">
                 <Field label="مالك العقار">
                   <Combo value={f.owner_client_id} onChange={(v) => set('owner_client_id', v)} options={ownerOptions} placeholder="اختر من العملاء" />
+                </Field>
+                <Field label="جاء عن طريق وسيط أو منعش" hint="لا يظهر في الموقع. تُقترح حصته عند تسجيل الصفقة.">
+                  <Combo value={f.broker_id ?? null} onChange={(v) => set('broker_id', v)} options={brokerOptions} placeholder="لا أحد: عقار مباشر من المالك" />
                 </Field>
                 <Field label="ملاحظات خاصة" hint="لا تظهر أبداً في الموقع: أقل ثمن، العمولة المتفق عليها، مكان المفتاح…">
                   <Textarea rows={4} value={f.private_notes ?? ''} onChange={(e) => set('private_notes', e.target.value || null)} />

@@ -1,5 +1,5 @@
 import { DEMO_USERS } from './config'
-import type { Activity, Appointment, CallLog, Client, Deal, Lead, Property, Staff, Task } from './types'
+import type { Activity, Appointment, Broker, CallLog, Client, Deal, Lead, Property, Staff, Task } from './types'
 
 const img = (id: string, w = 1400) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`
 
@@ -36,6 +36,7 @@ export function seedProperties(): Property[] {
     prop(
       {
         id: 'p-1001',
+        broker_id: 'b-1',
         ref: 'SH-1001',
         title: 'شقة فاخرة بإطلالة مباشرة على البحر — مرتيل',
         title_fr: 'Appartement de standing vue mer — Martil',
@@ -669,7 +670,7 @@ export function seedClients(): Client[] {
     { ...base, id: 'c-2', full_name: 'Laura Fernández', phone: '+34612345678', whatsapp: '+34612345678', email: 'laura.f@example.com', lang: 'es', kind: 'buyer', source: 'instagram', budget_min: 1_000_000, budget_max: 1_500_000, wants_purpose: 'sale', wants_types: ['apartment'], wants_neighborhoods: ['martil', 'cabo-negro', 'mdiq'], wants_rooms_min: 2, notes: 'Vive en Málaga. Quiere vistas al mar. Visitas por vídeo primero.', created_at: ago(9) },
     { ...base, id: 'c-3', full_name: 'محمد بنعيسى', phone: '0677889900', kind: 'tenant', source: 'phone', budget_min: 3_000, budget_max: 5_000, wants_purpose: 'rent', wants_types: ['apartment'], wants_neighborhoods: ['centre', 'tabola', 'coelma'], wants_rooms_min: 3, notes: 'أستاذ، يحتاج السكن قبل بداية الشهر المقبل.', created_at: ago(6) },
     { ...base, id: 'c-4', full_name: 'خديجة الريسوني', phone: '0655443322', kind: 'owner', source: 'referral', budget_min: null, budget_max: null, wants_purpose: null, wants_types: [], wants_neighborhoods: [], wants_rooms_min: null, notes: 'مالكة الرياض SH-1004. تفضل التواصل بعد الزوال.', created_at: ago(22) },
-    { ...base, id: 'c-5', full_name: 'Youssef El Idrissi', phone: '0612345678', email: 'y.idrissi@example.com', lang: 'fr', kind: 'investor', source: 'facebook', budget_min: 1_500_000, budget_max: 3_000_000, wants_purpose: 'sale', wants_types: ['land', 'commercial', 'building'], wants_neighborhoods: ['route-martil', 'centre', 'tabola'], wants_rooms_min: null, notes: 'مستثمر مقيم ببلجيكا، يزور تطوان في الصيف.', created_at: ago(30) },
+    { ...base, id: 'c-5', broker_id: 'b-2', full_name: 'Youssef El Idrissi', phone: '0612345678', email: 'y.idrissi@example.com', lang: 'fr', kind: 'investor', source: 'facebook', budget_min: 1_500_000, budget_max: 3_000_000, wants_purpose: 'sale', wants_types: ['land', 'commercial', 'building'], wants_neighborhoods: ['route-martil', 'centre', 'tabola'], wants_rooms_min: null, notes: 'مستثمر مقيم ببلجيكا، يزور تطوان في الصيف.', created_at: ago(30) },
     { ...base, id: 'c-6', full_name: 'سعاد الحداد', phone: '0698765432', kind: 'tenant', source: 'walkin', budget_min: 2_000, budget_max: 3_000, wants_purpose: 'rent', wants_types: ['studio', 'apartment'], wants_neighborhoods: ['universite', 'saniat-rmel'], wants_rooms_min: 1, notes: 'طالبة ماستر، تبحث عن استوديو مفروش.', created_at: ago(3) },
   ]
 }
@@ -744,14 +745,50 @@ export function seedTasks(): Task[] {
   ]
 }
 
-export function seedDeals(): Deal[] {
-  const d = (x: Omit<Deal, 'notes' | 'created_by' | 'created_at'> & Partial<Deal>): Deal => ({ notes: null, created_by: ADMIN, created_at: x.closed_at, ...x })
+export function seedBrokers(): Broker[] {
+  const b = (x: Partial<Broker> & Pick<Broker, 'id' | 'full_name' | 'phone'>, days: number): Broker => ({
+    whatsapp: null,
+    email: null,
+    kind: 'broker',
+    company: null,
+    zones: [],
+    specialties: [],
+    agreement_mode: 'side',
+    agreement_value: 0,
+    rating: null,
+    active: true,
+    notes: null,
+    created_by: ADMIN,
+    created_at: ago(days),
+    updated_at: ago(days),
+    ...x,
+  })
   return [
-    d({ id: 'd-1', property_id: 'p-1017', client_id: null, kind: 'sale', amount: 720_000, commission: 18_000, closed_at: ago(4, 16), notes: 'عمولة 2.5% من المشتري' }),
+    b({ id: 'b-1', full_name: 'عبد السلام الشاوني', phone: '0661102030', zones: ['martil', 'mdiq', 'cabo-negro'], specialties: ['sale', 'rent', 'seasonal'], rating: 5, notes: 'يعرف الشقق المطلة على البحر في مرتيل والمضيق. نقتسم العمولة مناصفة.' }, 120),
+    b({ id: 'b-2', full_name: 'نزهة البقالي', phone: '0662203040', kind: 'agency', company: 'وكالة الريف للعقار', zones: ['centre', 'tabola', 'coelma'], specialties: ['sale', 'commercial'], rating: 4, notes: 'وكالة شريكة في وسط المدينة.' }, 90),
+    b({ id: 'b-3', full_name: 'رشيد بوزيان', phone: '0663304050', kind: 'referrer', agreement_mode: 'percent', agreement_value: 10, specialties: ['sale'], rating: 3, notes: 'حارس عمارة بمرتيل، يخبرنا بالشقق المعروضة.' }, 60),
+    b({ id: 'b-4', full_name: 'مجموعة الأمل للإنعاش العقاري', phone: '0539700000', kind: 'developer', company: 'Groupe Al Amal Immobilier', agreement_mode: 'percent', agreement_value: 2, zones: ['route-martil'], specialties: ['new'], rating: 4, notes: 'مشروع شقق جديدة على طريق مرتيل. يدفع لنا 2% من ثمن كل شقة.' }, 45),
+  ]
+}
+
+export function seedDeals(): Deal[] {
+  const d = (x: Omit<Deal, 'notes' | 'created_by' | 'created_at'> & Partial<Deal>): Deal => ({
+    notes: null,
+    created_by: ADMIN,
+    created_at: x.closed_at,
+    commission_seller: 0,
+    commission_buyer: x.commission,
+    shares: [],
+    received: x.commission,
+    ...x,
+  })
+  const share = (id: string, ref: string, name: string, side: 'listing' | 'client' | 'other', value: number, paid: number, party: 'broker' | 'referrer' = 'broker') => ({ id, party, ref_id: ref, name, side, mode: 'percent' as const, value, paid, paid_at: paid ? ago(3) : null })
+  return [
+    d({ id: 'd-1', property_id: 'p-1017', client_id: null, kind: 'sale', amount: 720_000, commission: 18_000, closed_at: ago(4, 16), notes: 'عمولة 2.5% من المشتري', shares: [share('s-1', 'b-3', 'رشيد بوزيان', 'other', 10, 0, 'referrer')] }),
     d({ id: 'd-2', property_id: null, client_id: 'c-3', kind: 'rent', amount: 4_200, commission: 4_200, closed_at: ago(33, 11), notes: 'شقة بطابولة — عمولة شهر كراء' }),
-    d({ id: 'd-3', property_id: null, client_id: null, kind: 'sale', amount: 1_100_000, commission: 27_500, closed_at: ago(58, 10) }),
+    d({ id: 'd-3', property_id: null, client_id: 'c-5', kind: 'sale', amount: 1_100_000, commission: 55_000, commission_seller: 27_500, commission_buyer: 27_500, received: 55_000, closed_at: ago(58, 10), notes: 'الزبون جاء عن طريق وكالة الريف', shares: [share('s-2', 'b-2', 'نزهة البقالي', 'client', 50, 27_500)] }),
     d({ id: 'd-4', property_id: null, client_id: null, kind: 'rent', amount: 3_200, commission: 3_200, closed_at: ago(75, 12) }),
-    d({ id: 'd-5', property_id: null, client_id: null, kind: 'sale', amount: 2_400_000, commission: 60_000, closed_at: ago(110, 15), notes: 'فيلا بمرتيل' }),
+    d({ id: 'd-5', property_id: null, client_id: null, kind: 'sale', amount: 2_400_000, commission: 120_000, commission_seller: 60_000, commission_buyer: 60_000, received: 120_000, closed_at: ago(110, 15), notes: 'فيلا بمرتيل جلبها عبد السلام', shares: [share('s-3', 'b-1', 'عبد السلام الشاوني', 'listing', 50, 30_000)] }),
     d({ id: 'd-6', property_id: null, client_id: null, kind: 'rent', amount: 6_000, commission: 6_000, closed_at: ago(125, 9) }),
     d({ id: 'd-7', property_id: null, client_id: null, kind: 'sale', amount: 650_000, commission: 16_250, closed_at: ago(150, 14) }),
     d({ id: 'd-8', property_id: null, client_id: null, kind: 'rent', amount: 3_800, commission: 3_800, closed_at: ago(12, 10) }),
@@ -794,6 +831,7 @@ export function seedData() {
     appointments: seedAppointments(),
     tasks: seedTasks(),
     deals: seedDeals(),
+    brokers: seedBrokers(),
     calls: seedCalls(),
     staff: seedStaff(),
     activity: seedActivity(),
