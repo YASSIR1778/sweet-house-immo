@@ -1,4 +1,4 @@
-import type { AgreementMode, AppointmentKind, AppointmentStatus, BrokerKind, ClientKind, DocKind, Financing, Interest, KeysHolder, LeadKind, LeadSource, LeadStatus, MandateKind, OfferStatus, PriceOpinion, PropertyStatus, Purpose, Role, ShareParty, ShareSide, TaskPriority } from '@/shared/lib/types'
+import type { AgreementMode, AppointmentKind, AppointmentStatus, BillParty, BrokerKind, ClientKind, DealStage, DocKind, ExpenseCategory, Financing, Interest, InvoiceStatus, KeysHolder, LeadKind, LeadSource, LeadStatus, MandateKind, OfferStatus, PayMethod, PriceOpinion, PropertyStatus, Purpose, Role, ShareParty, ShareSide, TaskPriority} from '@/shared/lib/types'
 
 export interface Lbl {
   label: string
@@ -189,7 +189,52 @@ export const ENTITY: Record<string, string> = {
   document: 'وثيقة',
   owner_report: 'تقرير المالك',
   offer: 'عرض',
+  invoice: 'فاتورة',
+  payment: 'وصل',
+  expense: 'مصروف',
+  billing: 'معلومات الفوترة',
   session: 'الجلسة',
+}
+
+/* ---------------------------------------------------------------- deal file & money */
+export const DEAL_STAGE: Record<DealStage, { label: string; rent?: string; color: string }> = {
+  agreement: { label: 'الاتفاق والعربون', rent: 'الاتفاق', color: '#7c3aed' },
+  paperwork: { label: 'الوثائق والتمويل', rent: 'الوثائق والضمانات', color: '#1d4ed8' },
+  signing: { label: 'التوقيع عند الموثق', rent: 'توقيع العقد والمفاتيح', color: '#b45309' },
+  done: { label: 'تمت الصفقة', color: '#15803d' },
+  cancelled: { label: 'أُلغيت', color: '#64748b' },
+}
+export const stageLabel = (s: DealStage, kind: Purpose) => (kind === 'rent' && DEAL_STAGE[s].rent) || DEAL_STAGE[s].label
+
+export const INVOICE_STATUS: Record<InvoiceStatus, Lbl> = {
+  issued: { label: 'غير مؤداة', color: '#b45309' },
+  paid: { label: 'مؤداة', color: '#15803d' },
+  cancelled: { label: 'ملغاة', color: '#64748b' },
+}
+
+export const PAY_METHOD: Record<PayMethod, string> = {
+  cash: 'نقداً',
+  transfer: 'تحويل بنكي',
+  cheque: 'شيك',
+  card: 'بطاقة بنكية',
+  other: 'أخرى',
+}
+
+/** Who pays, in the words of the deal. */
+export const partyLabel = (p: BillParty, kind: Purpose) => (p === 'seller' ? (kind === 'rent' ? 'المالك' : 'البائع') : p === 'buyer' ? (kind === 'rent' ? 'المكتري' : 'المشتري') : 'آخر')
+
+export const EXPENSE_CAT: Record<ExpenseCategory, Lbl> = {
+  rent: { label: 'كراء المكتب', color: '#0b1b33' },
+  salaries: { label: 'الأجور والتحفيزات', color: '#7c3aed' },
+  ads: { label: 'الإشهار والإعلانات', color: '#be185d' },
+  photo: { label: 'التصوير والفيديو', color: '#0f766e' },
+  transport: { label: 'التنقل والوقود', color: '#b45309' },
+  phone: { label: 'الهاتف والإنترنت', color: '#1d4ed8' },
+  utilities: { label: 'الماء والكهرباء', color: '#0891b2' },
+  taxes: { label: 'الضرائب والرسوم', color: '#b91c1c' },
+  fees: { label: 'المحاسب والأتعاب', color: '#a8832f' },
+  office: { label: 'معدات ولوازم المكتب', color: '#475569' },
+  other: { label: 'أخرى', color: '#64748b' },
 }
 
 export const ACTION: Record<string, string> = {

@@ -2,10 +2,11 @@ import { DEFAULT_SETTINGS } from './config'
 import { nowIso, uid } from './format'
 import { IMAGES_BUCKET, getSupabase, isConfigured } from './supabase'
 import { DEFAULT_FEES } from './fee-defaults'
+import { DEMO_BILLING, nextDocNumber } from './billing'
 import { buildOwnerReport } from './owners'
 import type { Activity, Appointment, Client, FeeSettings, Lead, Mandate, OwnerReport, PriceChange, Property, SessionUser, Settings } from './types'
 
-export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers' | 'mandates' | 'documents' | 'price_history' | 'trash' | 'offers'
+export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers' | 'mandates' | 'documents' | 'price_history' | 'trash' | 'offers' | 'invoices' | 'payments' | 'expenses'
 
 export const TABLE: Record<TableName, string> = {
   properties: 're_properties',
@@ -23,15 +24,18 @@ export const TABLE: Record<TableName, string> = {
   price_history: 're_price_history',
   trash: 're_trash',
   offers: 're_offers',
+  invoices: 're_invoices',
+  payments: 're_payments',
+  expenses: 're_expenses',
 }
 
 /** Demo: deleted rows of these tables are kept in the local trash, like the database trigger does. */
-const LOCAL_TRASH: TableName[] = ['properties', 'clients', 'leads', 'appointments', 'tasks', 'calls', 'deals', 'brokers', 'mandates', 'documents', 'offers']
+const LOCAL_TRASH: TableName[] = ['properties', 'clients', 'leads', 'appointments', 'tasks', 'calls', 'deals', 'brokers', 'mandates', 'documents', 'offers', 'expenses']
 
 export const DOCS_BUCKET = 'property-docs'
 
 /** Internal settings (never public): read by the team, written with the «settings» permission. */
-export type PrivateKey = 'network'
+export type PrivateKey = 'network' | 'billing'
 
 export interface Row {
   id: string
@@ -98,7 +102,7 @@ function stripPrivate(p: Property): Property {
 /* Demo mode: everything in localStorage, seeded with sample data        */
 /* ------------------------------------------------------------------ */
 /** Raise when the demo gains a table, so browsers seeded before receive its sample rows. */
-const SEED_VERSION = '2'
+const SEED_VERSION = '3'
 
 class LocalRepo implements Repo {
   mode = 'demo' as const
@@ -134,6 +138,7 @@ class LocalRepo implements Repo {
       const s = seedData()
       // a browser seeded by an older version keeps its data and only receives the new tables
       for (const [t, rows] of Object.entries(s)) if (!seeded || localStorage.getItem(this.key(t)) === null) this.write(t, rows as unknown[])
+      if (localStorage.getItem('shi:private:billing') === null) localStorage.setItem('shi:private:billing', JSON.stringify(DEMO_BILLING))
       localStorage.setItem('shi:seeded', SEED_VERSION)
     } catch {
       /* private browsing: run without persistence */
@@ -143,6 +148,7 @@ class LocalRepo implements Repo {
     for (const t of Object.keys(TABLE)) localStorage.removeItem(this.key(t))
     localStorage.removeItem('shi:settings')
     localStorage.removeItem('shi:private:network')
+    localStorage.removeItem('shi:private:billing')
     localStorage.removeItem('shi:seeded')
     this.ready = this.ensureSeed()
     await this.ready
@@ -165,6 +171,13 @@ class LocalRepo implements Repo {
         this.write('price_history', [h, ...this.read<PriceChange>('price_history')])
       }
     }
+    if (i < 0 && (table === 'invoices' || table === 'payments')) {
+      // the database numbers invoices and receipts; the demo does it here
+      const r = row as unknown as { kind?: string; issued_at?: string; received_at?: string }
+      const series = table === 'payments' ? 'R' : r.kind === 'credit' ? 'AV' : 'F'
+      const year = Number(String((table === 'payments' ? r.received_at : r.issued_at) ?? nowIso()).slice(0, 4))
+      row = { ...row, no: nextDocNumber(rows.map((x) => String((x as unknown as { no?: string }).no ?? '')), series, year) }
+    }
     if (i >= 0) rows[i] = { ...rows[i], ...row }
     else rows.unshift(row)
     this.write(table, rows)
@@ -175,7 +188,7 @@ class LocalRepo implements Repo {
     const rows = this.read<Row>(table)
     const old = rows.find((r) => r.id === id) as (Row & Record<string, unknown>) | undefined
     if (old && LOCAL_TRASH.includes(table)) {
-      const label = [old.ref, old.full_name, old.name, old.title, old.caller_name].find((v) => typeof v === 'string' && v) as string | undefined
+      const label = [old.ref, old.full_name, old.name, old.title, old.caller_name, old.label].find((v) => typeof v === 'string' && v) as string | undefined
       const item = { id: uid(), table_name: TABLE[table], row_id: id, label: label ?? '', data: old, deleted_by: null, created_at: nowIso() }
       this.write('trash', [item, ...this.read('trash')].slice(0, 300))
     }

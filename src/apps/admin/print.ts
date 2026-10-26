@@ -3,9 +3,10 @@ import { toast } from 'sonner'
 import { FEATURES, SITE_URL } from '@/shared/lib/config'
 import { fmtDate, fmtNumber, fmtPhone, fmtPrice, fmtTime, interpolate, pick } from '@/shared/lib/format'
 import { translate } from '@/shared/lib/i18n'
+import { amountInWordsFr } from '@/shared/lib/billing'
 import { daysOnMarket } from '@/shared/lib/owners'
-import type { Appointment, Client, Mandate, OwnerReport, Property, Settings } from '@/shared/lib/types'
-import { KEYS, MANDATE_KIND, PROPERTY_STATUS } from './labels'
+import type { Appointment, BillingSettings, Client, Invoice, Mandate, OwnerReport, PayMethod, Payment, Property, Settings } from '@/shared/lib/types'
+import { KEYS, MANDATE_KIND, PAY_METHOD, PROPERTY_STATUS } from './labels'
 
 const esc = (s: string | number | null | undefined) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
@@ -59,6 +60,38 @@ table.v th small { display: block; color: #5b6475; font-weight: 400; direction: 
 .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
 .sign div { border: 1px dashed #b9ad92; border-radius: 12px; height: 34mm; padding: 8px 10px; font-size: 12px; color: #5b6475; }
 .small { font-size: 10.5px; color: #96a0b0; text-align: center; margin-top: 12px; }
+
+/* invoice / receipt */
+.inv-top { display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; margin-top: 14px; direction: ltr; text-align: left; }
+.inv-top .seller { font-size: 11.5px; line-height: 1.65; }
+.inv-top .who { font-size: 16px; font-weight: 800; color: #0b1b33; font-family: Inter, sans-serif; }
+.inv-top .ids { color: #5b6475; font-size: 10.5px; }
+.inv-top .doc { border: 2px solid #c9a24b; border-radius: 14px; padding: 10px 14px; }
+.inv-top .ttl { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.inv-top .ttl .t { font-size: 20px; font-weight: 800; letter-spacing: .05em; color: #0b1b33; font-family: Inter, sans-serif; }
+.inv-top .ttl .ta { font-family: 'Amiri', serif; font-size: 18px; color: #a8832f; }
+.inv-top .doc table { width: 100%; font-size: 12px; margin-top: 6px; border-collapse: collapse; }
+.inv-top .doc td { padding: 2px 0; }
+.inv-top .doc td:last-child { text-align: right; }
+.client { direction: ltr; text-align: left; margin-top: 12px; padding: 10px 14px; background: #f8f5ee; border-radius: 12px; font-size: 12.5px; line-height: 1.6; }
+.client small { display: block; color: #5b6475; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.client b { font-size: 15px; color: #0b1b33; }
+table.lines { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12.5px; direction: ltr; text-align: left; }
+table.lines th { background: #0b1b33; color: #fff; padding: 7px 10px; font-weight: 600; text-align: left; }
+table.lines th small { display: block; color: #e7d39a; font-weight: 400; font-size: 10px; }
+table.lines td { border-bottom: 1px solid #e6e0d3; padding: 9px 10px; vertical-align: top; }
+table.lines .n { text-align: right; white-space: nowrap; font-family: Inter, sans-serif; }
+.sum { display: grid; grid-template-columns: 1fr 72mm; gap: 14px; align-items: start; margin-top: 12px; direction: ltr; text-align: left; }
+.sum .words { font-size: 12px; line-height: 1.7; padding-top: 6px; }
+table.totals { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.totals td { padding: 6px 10px; border-bottom: 1px solid #e6e0d3; }
+table.totals td:last-child { text-align: right; font-family: Inter, sans-serif; white-space: nowrap; }
+table.totals tr.ttc td { background: #0b1b33; color: #fff; font-weight: 800; font-size: 15px; border: 0; }
+.note { direction: ltr; text-align: left; font-size: 11.5px; color: #5b6475; margin: 8px 0 0; }
+.sign.one { grid-template-columns: 1fr; justify-items: end; }
+.sign.one div { width: 72mm; }
+.legal { margin-top: 14px; padding-top: 8px; border-top: 1px solid #e6e0d3; direction: ltr; text-align: center; font-size: 9.5px; color: #5b6475; line-height: 1.55; }
+.void { position: fixed; top: 38%; left: 0; right: 0; text-align: center; font: 800 64px Inter, sans-serif; color: rgba(185, 28, 28, .15); transform: rotate(-18deg); pointer-events: none; }
 `
 
 function openPrint(title: string, body: string) {
@@ -246,4 +279,89 @@ export async function printOwnerReport(r: OwnerReport, ownerName: string, link: 
   <p style="font-size:11px;color:#5b6475">الزيارات: المنجزة + المبرمجة · Visites : effectuées + prévues · رأي الزوار دون أسمائهم · Avis des visiteurs, anonymes</p>
   ${qr ? `<div class="foot"><img src="${qr}" alt="QR"><div class="t">امسح الرمز لمتابعة عقاركم مباشرة في أي وقت<br><span class="fr">Scannez pour suivre votre bien en direct</span></div></div>` : ''}`
   openPrint(`Rapport ${ownerName}`, body)
+}
+
+/* ------------------------------------------------------------------ */
+/* Invoices and receipts (French, with Arabic labels)                   */
+/* ------------------------------------------------------------------ */
+const PAY_FR: Record<PayMethod, string> = { cash: 'Espèces', transfer: 'Virement bancaire', cheque: 'Chèque', card: 'Carte bancaire', other: 'Autre' }
+const money2 = (n: number) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n).replace(/[  ]/g, ' ')
+const dmy = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/')
+
+/** Legal identity line (article 145 of the tax code): name, form, capital, address, RC, IF, ICE, TP, CNSS. */
+function legalLine(b: BillingSettings, s: Settings): string {
+  const parts = [
+    b.company || pick(s.agency.name, 'fr'),
+    b.legal_form,
+    b.capital ? `capital ${b.capital}` : '',
+    [b.address, b.city && !b.address.includes(b.city) ? b.city : ''].filter(Boolean).join(', '),
+    b.rc ? `RC ${b.rc}` : '',
+    b.fiscal_id ? `IF ${b.fiscal_id}` : '',
+    b.ice ? `ICE ${b.ice}` : '',
+    b.tp ? `TP ${b.tp}` : '',
+    b.cnss ? `CNSS ${b.cnss}` : '',
+  ]
+  return esc(parts.filter(Boolean).join(' · '))
+}
+
+/** A4 invoice or credit note, with the amount in words. */
+export function printInvoice(inv: Invoice, b: BillingSettings, s: Settings, original?: Invoice | null) {
+  const credit = inv.kind === 'credit'
+  const rate = inv.vat_rate || 0
+  const ids = [b.rc && `RC ${esc(b.rc)}`, b.fiscal_id && `IF ${esc(b.fiscal_id)}`, b.ice && `ICE ${esc(b.ice)}`, b.tp && `TP ${esc(b.tp)}`, b.cnss && `CNSS ${esc(b.cnss)}`].filter(Boolean).join(' · ')
+  const lines = inv.lines
+    .map((l) => `<tr><td>${esc(l.label)}</td><td class="n">${esc(l.qty)}</td><td class="n">${money2(l.unit)}</td><td class="n">${money2(Math.round(l.qty * l.unit * 100) / 100)}</td></tr>`)
+    .join('')
+  const body = `${header(s)}
+  ${inv.status === 'cancelled' ? '<div class="void">ANNULÉE · ملغاة</div>' : ''}
+  <div class="inv-top">
+    <div class="seller">
+      <div class="who">${esc(b.company || pick(s.agency.name, 'fr'))}</div>
+      ${b.legal_form || b.capital ? `<div>${esc([b.legal_form, b.capital ? `au capital de ${b.capital}` : ''].filter(Boolean).join(' · '))}</div>` : ''}
+      <div>${esc([b.address, b.city && !b.address.includes(b.city) ? b.city : ''].filter(Boolean).join(', '))}</div>
+      <div>Tél. ${esc(fmtPhone(s.agency.phone))}${s.agency.email ? ` · ${esc(s.agency.email)}` : ''}</div>
+      ${ids ? `<div class="ids">${ids}</div>` : ''}
+    </div>
+    <div class="doc">
+      <div class="ttl"><span class="t">${credit ? 'AVOIR' : 'FACTURE'}</span><span class="ta">${credit ? 'فاتورة مضادة' : 'فاتورة'}</span></div>
+      <table>
+        <tr><td>N°</td><td class="num"><b>${esc(inv.no)}</b></td></tr>
+        <tr><td>Date</td><td class="num">${dmy(inv.issued_at)}</td></tr>
+        ${credit ? (original ? `<tr><td>Sur facture</td><td class="num">${esc(original.no)} du ${dmy(original.issued_at)}</td></tr>` : '') : `<tr><td>Échéance</td><td class="num">${inv.due_at ? dmy(inv.due_at) : 'À réception'}</td></tr>`}
+      </table>
+    </div>
+  </div>
+  <div class="client"><small>Facturé à · الزبون</small><b>${esc(inv.bill_name)}</b>${inv.bill_address ? `<div>${esc(inv.bill_address)}</div>` : ''}${inv.bill_ice ? `<div>ICE <span class="num">${esc(inv.bill_ice)}</span></div>` : ''}</div>
+  <table class="lines"><thead><tr><th>Désignation<small>البيان</small></th><th class="n">Qté</th><th class="n">P.U. ${rate ? 'HT' : ''}</th><th class="n">Montant ${rate ? 'HT' : ''}</th></tr></thead><tbody>${lines}</tbody></table>
+  <div class="sum">
+    <div class="words">Arrêté${credit ? 'e la présente facture d’avoir' : 'e la présente facture'} à la somme de :<br><b>${esc(amountInWordsFr(Math.abs(inv.total_ttc)))}${rate ? ' TTC' : ''}</b>${credit ? ' (en faveur du client)' : ''}.</div>
+    <table class="totals">
+      ${rate ? `<tr><td>Total HT</td><td>${money2(inv.total_ht)}</td></tr><tr><td>TVA ${esc(rate)} %</td><td>${money2(inv.total_vat)}</td></tr>` : ''}
+      <tr class="ttc"><td>${rate ? 'Total TTC' : 'Total'}</td><td>${money2(inv.total_ttc)} DH</td></tr>
+    </table>
+  </div>
+  ${rate ? '' : '<p class="note">TVA non applicable.</p>'}
+  ${!credit && b.rib ? `<p class="note">Règlement par virement${b.bank ? ` — ${esc(b.bank)}` : ''} — RIB <span class="num">${esc(b.rib)}</span></p>` : ''}
+  ${inv.notes ? `<p class="note">${esc(inv.notes)}</p>` : ''}
+  <div class="sign one"><div>Cachet et signature<br><span class="fr">ختم وتوقيع الوكالة</span></div></div>
+  <div class="legal">${legalLine(b, s)}${b.footer ? `<br>${esc(b.footer)}` : ''}</div>`
+  openPrint(`${credit ? 'Avoir' : 'Facture'} ${inv.no}`, body)
+}
+
+/** Receipt for money received, with the amount in words. */
+export function printReceipt(p: Payment, b: BillingSettings, s: Settings, about: string) {
+  const row = (ar: string, fr: string, v: string) => `<tr><th>${esc(ar)}<small>${esc(fr)}</small></th><td>${v}</td></tr>`
+  const body = `${header(s)}
+  ${p.status === 'cancelled' ? '<div class="void">ANNULÉ · ملغى</div>' : ''}
+  <div class="vtitle"><h1>وصل استلام · Reçu</h1><div class="no">N° <span class="num">${esc(p.no)}</span> · ${esc(b.city || 'Tétouan')}, le <span class="num">${dmy(p.received_at)}</span></div></div>
+  <table class="v">
+    ${row('استلمنا من', 'Reçu de', `<b>${esc(p.payer_name)}</b>`)}
+    ${row('المبلغ', 'La somme de', `<b class="num" style="font-size:18px">${money2(p.amount)} DH</b><div class="fr">${esc(amountInWordsFr(p.amount))}</div>`)}
+    ${row('طريقة الأداء', 'Mode de paiement', `${esc(PAY_METHOD[p.method])} · ${esc(PAY_FR[p.method])}${p.reference ? ` — <span class="num">${esc(p.reference)}</span>` : ''}`)}
+    ${row('مقابل', 'En règlement de', esc(about))}
+    ${p.notes ? row('ملاحظات', 'Notes', esc(p.notes)) : ''}
+  </table>
+  <div class="sign"><div>توقيع المؤدي<br><span class="fr">Signature du payeur</span></div><div>توقيع وختم الوكالة<br><span class="fr">Cachet et signature de l’agence</span></div></div>
+  <div class="legal">${legalLine(b, s)}</div>`
+  openPrint(`Reçu ${p.no}`, body)
 }

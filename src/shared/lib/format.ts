@@ -13,6 +13,14 @@ export function fmtNumber(n: number | null | undefined): string {
   return nf.format(n).replace(/ | /g, ' ')
 }
 
+const nf2 = new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+/** Amount with its centimes, for invoices and receipts: 44.791,67 */
+export function fmtMoney2(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return '—'
+  return nf2.format(n).replace(/ | /g, ' ')
+}
+
 export const CURRENCY: L10n = { ar: 'د.م.', fr: 'DH', es: 'DH' }
 export const PER_MONTH: L10n = { ar: '/ الشهر', fr: '/ mois', es: '/ mes' }
 

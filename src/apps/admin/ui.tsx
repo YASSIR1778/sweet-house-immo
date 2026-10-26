@@ -384,14 +384,14 @@ export function MiniEmpty({ icon, text, action }: { icon?: ReactNode; text: Reac
 }
 
 /** Horizontal bar used for small breakdowns. */
-export function BarRow({ label, value, max, color, suffix }: { label: ReactNode; value: number; max: number; color: string; suffix?: ReactNode }) {
+export function BarRow({ label, value, max, color, suffix, format }: { label: ReactNode; value: number; max: number; color: string; suffix?: ReactNode; format?: (n: number) => string }) {
   const pct = max > 0 ? Math.max(3, Math.round((value / max) * 100)) : 0
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-sm">
         <span className="text-text">{label}</span>
         <span className="num font-bold text-navy">
-          {value}
+          {format ? format(value) : value}
           {suffix}
         </span>
       </div>

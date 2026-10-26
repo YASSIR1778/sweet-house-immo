@@ -165,10 +165,10 @@ export function OfferDialog({ initial = {}, onClose, onSaved }: { initial?: Part
               icon={<BadgeDollarSign className="size-4" />}
               onClick={() => {
                 onClose()
-                quick('deal', { property_id: p.id, client_id: f.client_id, kind: p.purpose, amount: f.amount })
+                quick('deal', { property_id: p.id, client_id: f.client_id, kind: p.purpose, amount: f.amount, stage: 'agreement' })
               }}
             >
-              تسجيل الصفقة
+              فتح ملف الصفقة
             </Button>
           )}
         </div>

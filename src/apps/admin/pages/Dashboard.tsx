@@ -9,6 +9,7 @@ import { Button } from '@/shared/ui/base'
 import { useQuickAdd } from '../dialogs'
 import { firstName, greeting, useCan, useLookups, useMe, useNames } from '../hooks'
 import { ACTION, APPT_KIND, ENTITY, LEAD_KIND, LEAD_STATUS, LEAD_STATUS_ORDER, SOURCE } from '../labels'
+import { isDone } from '@/shared/lib/billing'
 import { Avatar, BarRow, Card, MiniEmpty, PageHeader, Pill, Stat } from '../ui'
 
 const MONTHS = (d: Date) => new Intl.DateTimeFormat('ar-MA-u-nu-latn', { month: 'short' }).format(d)
@@ -57,16 +58,18 @@ export function Dashboard() {
     const leadsPrev7 = leads.filter((l) => inRange(l.created_at, d14, d7)).length
     const waiting = leads.filter((l) => l.status === 'new').sort((a, b) => a.created_at.localeCompare(b.created_at))
     const weekVisits = appts.filter((a) => a.kind === 'visit' && a.status !== 'cancelled' && inRange(a.starts_at, wk, wkEnd))
-    const monthComm = deals.filter((d) => inRange(d.closed_at, monthStart)).reduce((s, d) => s + d.commission, 0)
-    const prevMonthComm = deals.filter((d) => inRange(d.closed_at, prevMonthStart, monthStart)).reduce((s, d) => s + d.commission, 0)
-    const yearDeals = deals.filter((d) => inRange(d.closed_at, yearStart))
+    // only deals that are done count as revenue (not those in progress or cancelled)
+    const closedDeals = deals.filter(isDone)
+    const monthComm = closedDeals.filter((d) => inRange(d.closed_at, monthStart)).reduce((s, d) => s + d.commission, 0)
+    const prevMonthComm = closedDeals.filter((d) => inRange(d.closed_at, prevMonthStart, monthStart)).reduce((s, d) => s + d.commission, 0)
+    const yearDeals = closedDeals.filter((d) => inRange(d.closed_at, yearStart))
     const yearComm = yearDeals.reduce((s, d) => s + d.commission, 0)
 
     // 12 months of commissions, oldest first
     const chart = Array.from({ length: 12 }, (_, i) => {
       const start = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1)
       const end = new Date(now.getFullYear(), now.getMonth() - 10 + i, 1)
-      const ds = deals.filter((d) => inRange(d.closed_at, start, end))
+      const ds = closedDeals.filter((d) => inRange(d.closed_at, start, end))
       return {
         label: MONTHS(start),
         sale: ds.filter((d) => d.kind === 'sale').reduce((s, d) => s + d.commission, 0),

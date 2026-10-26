@@ -18,7 +18,7 @@ export interface TrashItem {
 export const TRASH_DAYS = 30
 
 /** Tables whose deleted rows go to the trash. */
-export const TRASHABLE: TableName[] = ['properties', 'clients', 'leads', 'appointments', 'tasks', 'calls', 'deals', 'brokers', 'mandates', 'documents', 'offers']
+export const TRASHABLE: TableName[] = ['properties', 'clients', 'leads', 'appointments', 'tasks', 'calls', 'deals', 'brokers', 'mandates', 'documents', 'offers', 'expenses']
 
 export function tableOf(dbName: string): TableName | null {
   return (Object.keys(TABLE) as TableName[]).find((k) => TABLE[k] === dbName) ?? null

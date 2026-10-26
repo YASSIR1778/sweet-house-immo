@@ -1,5 +1,6 @@
+import { defaultChecklist } from './billing'
 import { DEMO_USERS } from './config'
-import type { Activity, Appointment, Broker, CallLog, Client, Deal, Lead, Mandate, Offer, PriceChange, Property, Staff, Task } from './types'
+import type { Activity, Appointment, Broker, CallLog, Client, Deal, Expense, Invoice, Lead, Mandate, Offer, Payment, PriceChange, Property, Staff, Task } from './types'
 
 const img = (id: string, w = 1400) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`
 
@@ -212,7 +213,7 @@ export function seedProperties(): Property[] {
         lat: 35.5975,
         lng: -5.3198,
         images: [img('1500382017468-9049fed747ef'), img('1464822759023-fed622ff2c3b')],
-        status: 'available',
+        status: 'reserved',
         featured: false,
         published: true,
       },
@@ -844,7 +845,7 @@ export function seedDeals(): Deal[] {
   })
   const share = (id: string, ref: string, name: string, side: 'listing' | 'client' | 'other', value: number, paid: number, party: 'broker' | 'referrer' = 'broker') => ({ id, party, ref_id: ref, name, side, mode: 'percent' as const, value, paid, paid_at: paid ? ago(3) : null })
   return [
-    d({ id: 'd-1', property_id: 'p-1017', client_id: null, kind: 'sale', amount: 720_000, commission: 18_000, closed_at: ago(4, 16), notes: 'عمولة 2.5% من المشتري', shares: [share('s-1', 'b-3', 'رشيد بوزيان', 'other', 10, 0, 'referrer')] }),
+    d({ id: 'd-1', property_id: 'p-1017', client_id: null, kind: 'sale', amount: 720_000, commission: 18_000, received: 0, closed_at: ago(4, 16), notes: 'عمولة 2.5% من المشتري', shares: [share('s-1', 'b-3', 'رشيد بوزيان', 'other', 10, 0, 'referrer')] }),
     d({ id: 'd-2', property_id: null, client_id: 'c-3', kind: 'rent', amount: 4_200, commission: 4_200, closed_at: ago(33, 11), notes: 'شقة بطابولة — عمولة شهر كراء' }),
     d({ id: 'd-3', property_id: null, client_id: 'c-5', kind: 'sale', amount: 1_100_000, commission: 55_000, commission_seller: 27_500, commission_buyer: 27_500, received: 55_000, closed_at: ago(58, 10), notes: 'الزبون جاء عن طريق وكالة الريف', shares: [share('s-2', 'b-2', 'نزهة البقالي', 'client', 50, 27_500)] }),
     d({ id: 'd-4', property_id: null, client_id: null, kind: 'rent', amount: 3_200, commission: 3_200, closed_at: ago(75, 12) }),
@@ -852,6 +853,132 @@ export function seedDeals(): Deal[] {
     d({ id: 'd-6', property_id: null, client_id: null, kind: 'rent', amount: 6_000, commission: 6_000, closed_at: ago(125, 9) }),
     d({ id: 'd-7', property_id: null, client_id: null, kind: 'sale', amount: 650_000, commission: 16_250, closed_at: ago(150, 14) }),
     d({ id: 'd-8', property_id: null, client_id: null, kind: 'rent', amount: 3_800, commission: 3_800, closed_at: ago(12, 10) }),
+    // in progress: the investor is buying the land (documents and bank), a buyer agreed on the sea-view flat
+    d({
+      id: 'd-9',
+      property_id: 'p-1005',
+      client_id: 'c-5',
+      kind: 'sale',
+      amount: 2_150_000,
+      commission: 107_500,
+      commission_seller: 53_750,
+      commission_buyer: 53_750,
+      received: 0,
+      stage: 'paperwork',
+      deposit: 215_000,
+      notary: 'الأستاذ يوسف البقالي، موثق بتطوان (مثال)',
+      // a plot of land: no co-ownership certificate
+      checklist: defaultChecklist('sale', (() => { let n = 0; return () => `ck-9-${++n}` })())
+        .filter((x) => !x.label.includes('السانديك'))
+        .map((x, i) => (i < 4 ? { ...x, done: true, at: ago(14 - i * 3) } : x)),
+      closed_at: at(21, 11),
+      created_at: ago(15, 11),
+      notes: 'العربون مودع عند الموثق. ننتظر موافقة البنك على القرض.',
+      shares: [share('s-9', 'b-2', 'نزهة البقالي', 'client', 50, 0)],
+    }),
+    d({
+      id: 'd-10',
+      property_id: 'p-1014',
+      client_id: 'c-2',
+      kind: 'sale',
+      amount: 1_300_000,
+      commission: 65_000,
+      commission_seller: 32_500,
+      commission_buyer: 32_500,
+      received: 0,
+      stage: 'agreement',
+      checklist: defaultChecklist('sale', (() => { let n = 0; return () => `ck-10-${++n}` })()),
+      closed_at: at(45, 11),
+      created_at: ago(1, 18),
+      notes: 'اتفاق مبدئي على 1.300.000 بعد الجولة بالفيديو. العربون عند زيارتها في نونبر.',
+    }),
+  ]
+}
+
+/* Invoices and receipts of the last deals, and the agency's expenses (VAT 20 %). */
+export function seedInvoices(): Invoice[] {
+  const day = (n: number) => at(-n, 12).slice(0, 10)
+  const inv = (x: Partial<Invoice> & Pick<Invoice, 'id' | 'no' | 'bill_name' | 'total_ttc' | 'issued_at'> & { label: string }): Invoice => {
+    const ht = Math.round((x.total_ttc / 1.2) * 100) / 100
+    const { label, ...rest } = x
+    return {
+      kind: 'invoice',
+      deal_id: null,
+      client_id: null,
+      party: 'buyer',
+      bill_ice: null,
+      bill_address: null,
+      lines: [{ label, qty: 1, unit: ht }],
+      vat_rate: 20,
+      total_ht: ht,
+      total_vat: Math.round((x.total_ttc - ht) * 100) / 100,
+      due_at: null,
+      status: 'paid',
+      paid: x.total_ttc,
+      ref_invoice_id: null,
+      notes: null,
+      created_by: ADMIN,
+      created_at: `${x.issued_at}T11:00:00.000Z`,
+      updated_at: `${x.issued_at}T11:00:00.000Z`,
+      ...rest,
+    }
+  }
+  return [
+    inv({ id: 'inv-4', no: 'F-2026-0004', deal_id: 'd-1', bill_name: 'M. Kamal Ouazzani', bill_address: 'Tabola, Tétouan', total_ttc: 18_000, issued_at: day(4), due_at: day(-26), status: 'issued', paid: 0, label: "Honoraires d'intermédiation — achat du bien SH-1017 (appartement, Tabola), prix 720 000 DH" }),
+    inv({ id: 'inv-3', no: 'F-2026-0003', deal_id: 'd-8', bill_name: 'M. Omar El Kacemi', total_ttc: 3_800, issued_at: day(12), label: 'Honoraires de location — part du locataire, loyer mensuel 3 800 DH' }),
+    inv({ id: 'inv-2', no: 'F-2026-0002', deal_id: 'd-3', party: 'seller', bill_name: 'Mme Fatima Zahra Bennani', total_ttc: 27_500, issued_at: day(58), label: "Honoraires d'intermédiation — vente, part du vendeur, prix 1 100 000 DH" }),
+    inv({ id: 'inv-1', no: 'F-2026-0001', deal_id: 'd-3', client_id: 'c-5', bill_name: 'Youssef El Idrissi', total_ttc: 27_500, issued_at: day(58), label: "Honoraires d'intermédiation — achat, part de l'acquéreur, prix 1 100 000 DH" }),
+  ]
+}
+
+export function seedPayments(): Payment[] {
+  const day = (n: number) => at(-n, 12).slice(0, 10)
+  const pay = (x: Partial<Payment> & Pick<Payment, 'id' | 'no' | 'payer_name' | 'amount' | 'received_at'>): Payment => ({
+    deal_id: null,
+    invoice_id: null,
+    client_id: null,
+    party: 'buyer',
+    method: 'cash',
+    reference: null,
+    status: 'valid',
+    notes: null,
+    created_by: ADMIN,
+    created_at: `${x.received_at}T15:00:00.000Z`,
+    ...x,
+  })
+  return [
+    pay({ id: 'pay-3', no: 'R-2026-0003', deal_id: 'd-8', invoice_id: 'inv-3', payer_name: 'M. Omar El Kacemi', amount: 3_800, received_at: day(12) }),
+    pay({ id: 'pay-2', no: 'R-2026-0002', deal_id: 'd-3', invoice_id: 'inv-2', party: 'seller', payer_name: 'Mme Fatima Zahra Bennani', amount: 27_500, method: 'cheque', reference: 'Chèque n° 0012457', received_at: day(56) }),
+    pay({ id: 'pay-1', no: 'R-2026-0001', deal_id: 'd-3', invoice_id: 'inv-1', client_id: 'c-5', payer_name: 'Youssef El Idrissi', amount: 27_500, method: 'transfer', reference: 'Virement 58213', received_at: day(57) }),
+  ]
+}
+
+export function seedExpenses(): Expense[] {
+  const day = (n: number) => at(-n, 12).slice(0, 10)
+  const e = (x: Partial<Expense> & Pick<Expense, 'id' | 'category' | 'label' | 'amount' | 'spent_at'>): Expense => ({
+    method: 'cash',
+    vendor: null,
+    property_id: null,
+    deal_id: null,
+    notes: null,
+    created_by: ADMIN,
+    created_at: `${x.spent_at}T16:00:00.000Z`,
+    updated_at: `${x.spent_at}T16:00:00.000Z`,
+    ...x,
+  })
+  return [
+    e({ id: 'e-12', category: 'photo', label: 'تصوير شقة بوجراح SH-1018', amount: 1_500, vendor: 'مصور مستقل', property_id: 'p-1018', spent_at: day(2) }),
+    e({ id: 'e-11', category: 'other', label: 'نسخ الرسم العقاري وتنقل للموثق — SH-1005', amount: 300, deal_id: 'd-9', spent_at: day(5) }),
+    e({ id: 'e-10', category: 'phone', label: 'الهاتف والإنترنت', amount: 449, method: 'transfer', vendor: 'Maroc Telecom', spent_at: day(10) }),
+    e({ id: 'e-9', category: 'transport', label: 'وقود الزيارات', amount: 600, spent_at: day(15) }),
+    e({ id: 'e-8', category: 'utilities', label: 'فاتورة الكهرباء والماء', amount: 380, vendor: 'Amendis', spent_at: day(18) }),
+    e({ id: 'e-7', category: 'ads', label: 'اشتراك Avito Pro', amount: 990, method: 'card', vendor: 'Avito', spent_at: day(20) }),
+    e({ id: 'e-6', category: 'rent', label: 'كراء المكتب — شهر أكتوبر', amount: 4_000, method: 'transfer', spent_at: day(25) }),
+    e({ id: 'e-5', category: 'fees', label: 'أتعاب المحاسب — الربع الثالث', amount: 1_500, method: 'transfer', spent_at: day(28) }),
+    e({ id: 'e-4', category: 'ads', label: 'إعلانات فيسبوك وإنستغرام', amount: 1_200, method: 'card', vendor: 'Meta', spent_at: day(40) }),
+    e({ id: 'e-3', category: 'rent', label: 'كراء المكتب — شهر شتنبر', amount: 4_000, method: 'transfer', spent_at: day(56) }),
+    e({ id: 'e-2', category: 'rent', label: 'كراء المكتب — شهر غشت', amount: 4_000, method: 'transfer', spent_at: day(86) }),
+    e({ id: 'e-1', category: 'office', label: 'طابعة ولوازم المكتب', amount: 2_350, vendor: 'Bureau Plus', spent_at: day(90) }),
   ]
 }
 
@@ -895,6 +1022,9 @@ export function seedData() {
     mandates: seedMandates(),
     price_history: seedPriceHistory(),
     offers: seedOffers(),
+    invoices: seedInvoices(),
+    payments: seedPayments(),
+    expenses: seedExpenses(),
     calls: seedCalls(),
     staff: seedStaff(),
     activity: seedActivity(),

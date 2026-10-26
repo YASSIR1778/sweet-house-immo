@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, Building, Database, Download, FileText, Globe, Handshake, Landmark, MapPinned, MessageSquareQuote, Plus, RotateCcw, Save, Settings as SettingsIcon, Trash2, Upload } from 'lucide-react'
+import { ArrowDown, ArrowUp, Building, Database, Download, FileText, Globe, Handshake, Landmark, MapPinned, MessageSquareQuote, Plus, Receipt, RotateCcw, Save, Settings as SettingsIcon, Trash2, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { useSaveSettings, useSettings, useTable } from '@/shared/lib/data'
 import { download, fmtNumber, slugify, toCsv } from '@/shared/lib/format'
@@ -13,9 +14,11 @@ import { LocationPicker } from '@/shared/ui/map'
 import { errorText, useCan, useMe } from '../hooks'
 import { LEAD_KIND, LEAD_STATUS, PROPERTY_STATUS, SOURCE } from '../labels'
 import { Card, L10nField, PageHeader, Tabs } from '../ui'
+import { BillingTab } from './settings-billing'
 import { CommissionTab, FeesTab } from './settings-fees'
 
-type Tab = 'agency' | 'site' | 'testimonials' | 'areas' | 'docs' | 'commission' | 'fees' | 'data'
+type Tab = 'agency' | 'site' | 'testimonials' | 'areas' | 'docs' | 'commission' | 'billing' | 'fees' | 'data'
+const TABS: Tab[] = ['agency', 'site', 'testimonials', 'areas', 'docs', 'commission', 'billing', 'fees', 'data']
 
 function useSaveSection() {
   const { mutateAsync, isPending } = useSaveSettings()
@@ -45,7 +48,9 @@ function SaveBar({ onSave, pending }: { onSave: () => void; pending: boolean }) 
 export function Settings() {
   const { data } = useSettings()
   const s = data as SettingsT
-  const [tab, setTab] = useState<Tab>('agency')
+  const [params, setParams] = useSearchParams()
+  const tab = (TABS.includes(params.get('tab') as Tab) ? params.get('tab') : 'agency') as Tab
+  const setTab = (t: Tab) => setParams(t === 'agency' ? {} : { tab: t }, { replace: true })
   return (
     <>
       <PageHeader title="الإعدادات" subtitle="كل ما يظهر في الموقع يُعدَّل من هنا، بدون برمجة" icon={<SettingsIcon className="size-6" />} />
@@ -59,6 +64,7 @@ export function Settings() {
           { value: 'areas', label: <span className="inline-flex items-center gap-1.5"><MapPinned className="size-4" /> المناطق والمراجع</span> },
           { value: 'docs', label: <span className="inline-flex items-center gap-1.5"><FileText className="size-4" /> الوثائق</span> },
           { value: 'commission', label: <span className="inline-flex items-center gap-1.5"><Handshake className="size-4" /> العمولات والشركاء</span> },
+          { value: 'billing', label: <span className="inline-flex items-center gap-1.5"><Receipt className="size-4" /> الفوترة</span> },
           { value: 'fees', label: <span className="inline-flex items-center gap-1.5"><Landmark className="size-4" /> المصاريف والضرائب</span> },
           { value: 'data', label: <span className="inline-flex items-center gap-1.5"><Database className="size-4" /> البيانات والنسخ</span> },
         ]}
@@ -70,6 +76,7 @@ export function Settings() {
         {tab === 'areas' && <AreasForm key={JSON.stringify(s.catalog)} value={s.catalog} />}
         {tab === 'docs' && <DocsForm key={JSON.stringify([s.site.visit_clause, s.site.mandate_clause, s.site.mandate_exclusive])} site={s.site} />}
         {tab === 'commission' && <CommissionTab />}
+        {tab === 'billing' && <BillingTab />}
         {tab === 'fees' && <FeesTab />}
         {tab === 'data' && <DataTab />}
       </div>

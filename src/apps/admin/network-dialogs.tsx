@@ -1,16 +1,18 @@
 import { Plus, Sparkles, Star, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
+import { defaultChecklist, STAGE_ORDER } from '@/shared/lib/billing'
 import { agencyNet, defaultCommission, shareAmount, shareFromBroker, sharesTotal, suggestShares } from '@/shared/lib/commission'
 import { useNetwork, useSettings, useTable } from '@/shared/lib/data'
 import { DEFAULT_NETWORK } from '@/shared/lib/fee-defaults'
 import { combineDateTime, fmtNumber, localDate, nowIso, uid } from '@/shared/lib/format'
 import { currentMandate, mandateCommission } from '@/shared/lib/owners'
-import type { AgreementMode, Broker, BrokerKind, Deal, DealShare, Mandate, NetworkSettings, Property, Purpose, Settings, ShareParty, ShareSide } from '@/shared/lib/types'
+import type { AgreementMode, Broker, BrokerKind, Deal, DealShare, DealStage, Invoice, Mandate, NetworkSettings, Payment, Property, Purpose, Settings, ShareParty, ShareSide } from '@/shared/lib/types'
 import { Button, Field, Input, Modal, Segmented, Select, Switch, Textarea, cn } from '@/shared/ui/base'
 import { StaffSelect, useClientOptions, usePropertyOptions } from './dialogs'
 import { useCan, useDeleteRow, useLookups, useMe, useNames, useSave } from './hooks'
-import { AGREEMENT, BROKER_KIND, SHARE_PARTY, SIDE, SPECIALTIES } from './labels'
+import { AGREEMENT, BROKER_KIND, SHARE_PARTY, SIDE, SPECIALTIES, stageLabel } from './labels'
 import { Chips, Combo, Pill, type ComboOption } from './ui'
 
 const num = (v: string) => (v.trim() === '' || Number.isNaN(Number(v)) ? 0 : Number(v))
@@ -201,6 +203,28 @@ export function BrokerDialog({ initial = {}, onClose, onSaved }: { initial?: Par
   )
 }
 
+/**
+ * The property follows its deal: reserved while the deal is in progress, sold / rented and taken
+ * off the website when it is done (the owner's mandate then ends).
+ */
+export function useMarkDealProperty() {
+  const can = useCan()
+  const { data: mandates = [] } = useTable<Mandate>('mandates')
+  const prop = useSave<Property>('properties', 'property', (p) => p.ref)
+  const saveMandate = useSave<Mandate>('mandates', 'mandate', () => 'تفويض')
+  return async (p: Property, done: boolean) => {
+    if (!can('properties')) return
+    if (!done) {
+      if (p.status === 'available') await prop.save({ ...p, status: 'reserved', updated_at: nowIso() }, { action: 'status', silent: true, meta: { status: 'reserved' } })
+      return
+    }
+    const status = p.purpose === 'rent' ? 'rented' : 'sold'
+    await prop.save({ ...p, status, published: false, featured: false, updated_at: nowIso() }, { action: 'status', silent: true, meta: { status } })
+    const m = currentMandate(mandates, p.id)
+    if (m) await saveMandate.save({ ...m, status: 'ended', updated_at: nowIso() }, { silent: true, action: 'status', meta: { status: 'ended' } })
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Deal: commission of each party and its sharing with partners          */
 /* ------------------------------------------------------------------ */
@@ -213,11 +237,13 @@ export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
   const { data: network = DEFAULT_NETWORK } = useNetwork()
   const { data: brokers = [] } = useTable<Broker>('brokers')
   const { data: mandates = [] } = useTable<Mandate>('mandates')
+  const { data: invoices = [] } = useTable<Invoice>('invoices', { enabled: can('deals') })
+  const { data: payments = [] } = useTable<Payment>('payments', { enabled: can('deals') })
+  const nav = useNavigate()
   const brokerById = useMemo(() => new Map(brokers.map((b) => [b.id, b])), [brokers])
   const propertyOptions = usePropertyOptions()
   const clientOptions = useClientOptions()
   const partnerOptions = useBrokerOptions(['broker', 'agency', 'referrer'])
-  const saveMandate = useSave<Mandate>('mandates', 'mandate', (m) => L.property(m.property_id)?.ref ?? 'تفويض')
   const isNew = !initial.id
   const legacy = !isNew && initial.commission_seller == null && initial.commission_buyer == null
   const [f, setF] = useState(() => ({
@@ -232,13 +258,19 @@ export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
     notes: initial.notes ?? '',
     shares: (initial.shares ?? []) as DealShare[],
     received: initial.received ?? initial.commission ?? 0,
+    stage: (initial.stage ?? 'done') as DealStage,
   }))
-  const [receivedAll, setReceivedAll] = useState(isNew || (initial.received ?? initial.commission ?? 0) >= (initial.commission ?? 0))
+  const wasDone = !isNew && (initial.stage ?? 'done') === 'done'
+  // receipts recorded for this deal decide what was collected
+  const receipts = payments.filter((x) => x.deal_id === f.id)
+  const fromReceipts = Math.round(receipts.filter((x) => x.status === 'valid').reduce((s, x) => s + x.amount, 0) * 100) / 100
+  const [receivedAll, setReceivedAll] = useState(isNew ? (initial.stage ?? 'done') === 'done' : (initial.received ?? initial.commission ?? 0) >= (initial.commission ?? 0))
   const [touched, setTouched] = useState(!isNew)
-  const [markProperty, setMarkProperty] = useState(isNew)
+  const [receivedTouched, setReceivedTouched] = useState(false)
+  const [markProperty, setMarkProperty] = useState(true)
+  const markDealProperty = useMarkDealProperty()
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }))
   const deal = useSave<Deal>('deals', 'deal', (d) => `${L.property(d.property_id)?.ref ?? 'صفقة'} — ${fmtNumber(d.amount)} د.م.`)
-  const prop = useSave<Property>('properties', 'property', (p) => p.ref)
   const del = useDeleteRow('deals', 'deal')
   const p = L.property(f.property_id)
   const total = (f.seller || 0) + (f.buyer || 0)
@@ -307,6 +339,7 @@ export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
 
   const submit = async () => {
     if (!f.amount || f.amount <= 0) return toast.error('أدخل مبلغ الصفقة')
+    const done = f.stage === 'done'
     if (f.shares.some((s) => !s.ref_id)) return toast.error('اختر اسم كل شريك في تقسيم العمولة، أو احذف السطر الفارغ')
     if (net < 0) return toast.error('مجموع حصص الشركاء أكبر من العمولة')
     const shares = f.shares.map((s) => {
@@ -324,21 +357,23 @@ export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
       commission_seller: f.seller || 0,
       commission_buyer: f.buyer || 0,
       shares,
-      received: receivedAll ? total : Math.max(0, Math.min(total, f.received || 0)),
+      received: receipts.length ? fromReceipts : receivedAll ? total : Math.max(0, Math.min(total, f.received || 0)),
+      stage: f.stage,
+      // a deal in progress gets the usual documents and steps to follow
+      checklist: initial.checklist?.length ? initial.checklist : !done ? defaultChecklist(f.kind, uid) : (initial.checklist ?? []),
+      deposit: initial.deposit ?? null,
+      notary: initial.notary ?? null,
       notes: f.notes.trim() || null,
       closed_at: combineDateTime(f.closed_at, '12:00'),
       created_by: initial.created_by ?? me.id,
       created_at: initial.created_at ?? nowIso(),
     }
-    const saved = await deal.save(row, { isNew })
+    const saved = await deal.save(row, { isNew, message: isNew && !done ? 'فُتح ملف الصفقة' : undefined })
     if (!saved) return
-    if (markProperty && p) {
-      await prop.save({ ...p, status: f.kind === 'rent' ? 'rented' : 'sold', published: false, featured: false, updated_at: nowIso() }, { action: 'status', silent: true, meta: { status: f.kind === 'rent' ? 'rented' : 'sold' } })
-      const m = currentMandate(mandates, p.id)
-      if (m && can('properties')) await saveMandate.save({ ...m, status: 'ended', updated_at: nowIso() }, { silent: true, action: 'status', meta: { status: 'ended' } })
-    }
+    if (markProperty && p) await markDealProperty(p, done)
     onSaved?.(saved)
     onClose()
+    if (isNew && !done) nav(`/admin/deals/${saved.id}`)
   }
 
   const rent = f.kind === 'rent'
@@ -358,6 +393,7 @@ export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
               className="me-auto text-danger"
               icon={<Trash2 className="size-4" />}
               onClick={async () => {
+                if (invoices.some((i) => i.deal_id === f.id) || receipts.length) return toast.error('لهذه الصفقة فواتير أو وصولات صادرة، فلا تُحذف. يمكن إلغاؤها من ملف الصفقة.')
                 if (await del(f.id, 'الصفقة')) onClose()
               }}
             >
@@ -397,10 +433,21 @@ export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
           <Field label={rent ? 'ثمن الكراء الشهري' : 'ثمن البيع'}>
             <Input type="number" inputMode="numeric" dir="ltr" className="num" value={f.amount || ''} onChange={(e) => reprice({ amount: num(e.target.value) })} />
           </Field>
-          <Field label="تاريخ الإنجاز">
+          <Field label={f.stage === 'done' ? 'تاريخ الإنجاز' : 'التاريخ المتوقع للتوقيع'}>
             <Input type="date" dir="ltr" className="num" value={f.closed_at} onChange={(e) => set('closed_at', e.target.value)} />
           </Field>
         </div>
+        <Field label="المرحلة" hint={f.stage === 'done' ? 'تُحسب العمولة في مداخيل الشهر بتاريخ الإنجاز.' : 'صفقة قيد الإنجاز: تتابعها في ملف الصفقة ولا تُحسب في المداخيل حتى تتم.'}>
+          <Segmented
+            value={f.stage === 'cancelled' ? 'done' : f.stage}
+            onChange={(v) => {
+              set('stage', v)
+              if (isNew && !receivedTouched) setReceivedAll(v === 'done')
+            }}
+            options={STAGE_ORDER.map((k) => ({ value: k, label: stageLabel(k, f.kind) }))}
+            className="flex w-full overflow-x-auto [&>button]:flex-1 [&>button]:px-2 [&>button]:text-xs sm:[&>button]:text-sm"
+          />
+        </Field>
 
         <section className="space-y-3 rounded-2xl border border-line bg-ivory p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -444,8 +491,22 @@ export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
               <div className="mt-1 text-xs text-subtle">{hint(total) ?? ' '}</div>
             </div>
           </div>
-          <Switch checked={receivedAll} onChange={setReceivedAll} label="تم تحصيل العمولة كاملة من الطرفين" />
-          {!receivedAll && (
+          {receipts.length > 0 ? (
+            <p className="text-sm text-muted">
+              المحصل حسب الوصولات: <b className="num text-navy">{fmtNumber(fromReceipts)} د.م.</b>
+              {total > fromReceipts && <span className="text-warning"> · الباقي {fmtNumber(total - fromReceipts)}</span>}
+            </p>
+          ) : (
+            <Switch
+              checked={receivedAll}
+              onChange={(v) => {
+                setReceivedTouched(true)
+                setReceivedAll(v)
+              }}
+              label="تم تحصيل العمولة كاملة من الطرفين"
+            />
+          )}
+          {!receipts.length && !receivedAll && (
             <Field label="المبلغ المحصل إلى الآن" hint={`الباقي: ${fmtNumber(Math.max(0, total - (f.received || 0)))} د.م.`}>
               <Input type="number" inputMode="numeric" dir="ltr" className="num sm:w-56" value={f.received || ''} onChange={(e) => set('received', num(e.target.value))} />
             </Field>
@@ -544,7 +605,9 @@ export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
         <Field label="ملاحظات">
           <Textarea rows={2} value={f.notes} onChange={(e) => set('notes', e.target.value)} />
         </Field>
-        {p && isNew && <Switch checked={markProperty} onChange={setMarkProperty} label={`تغيير حالة ${p.ref} إلى «${rent ? 'مُكترى' : 'مُباع'}» وإخفاؤه من الموقع`} />}
+        {p && (isNew || (!wasDone && f.stage === 'done')) && (f.stage === 'done' || p.status === 'available') && (
+          <Switch checked={markProperty} onChange={setMarkProperty} label={f.stage === 'done' ? `تغيير حالة ${p.ref} إلى «${rent ? 'مُكترى' : 'مُباع'}» وإخفاؤه من الموقع` : `تحويل ${p.ref} إلى «محجوز»`} />
+        )}
       </div>
     </Modal>
   )

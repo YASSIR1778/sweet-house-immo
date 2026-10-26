@@ -197,7 +197,16 @@ export interface Deal {
   shares?: DealShare[]
   /** commission actually collected from the parties so far */
   received?: number
+  /** where the deal stands; deals recorded before stages existed are «done» */
+  stage?: DealStage
+  /** documents and steps until the signature */
+  checklist?: ChecklistItem[]
+  /** earnest money paid by the buyer / tenant (العربون) */
+  deposit?: number | null
+  /** notary or adoul in charge of the deed */
+  notary?: string | null
   notes: string | null
+  /** date of the deal (expected date while it is in progress) */
   closed_at: string
   created_by: string | null
   created_at: string
@@ -219,6 +228,124 @@ export interface DealShare {
   /** paid to this partner so far (dirhams) */
   paid: number
   paid_at: string | null
+}
+
+/* ---------------------------------------------------------------- deal file & money */
+export type DealStage = 'agreement' | 'paperwork' | 'signing' | 'done' | 'cancelled'
+export interface ChecklistItem {
+  id: string
+  label: string
+  done: boolean
+  at: string | null
+}
+
+export type InvoiceKind = 'invoice' | 'credit'
+export type InvoiceStatus = 'issued' | 'paid' | 'cancelled'
+/** seller = owner / landlord ; buyer = buyer / tenant */
+export type BillParty = 'seller' | 'buyer' | 'other'
+export interface InvoiceLine {
+  label: string
+  qty: number
+  /** unit price before VAT */
+  unit: number
+}
+/** A numbered invoice (or credit note). Never rewritten once issued: it is cancelled by a credit note. */
+export interface Invoice {
+  id: string
+  /** given by the database: F-2026-0001, AV-2026-0001 ('' before the first save) */
+  no: string
+  kind: InvoiceKind
+  deal_id: string | null
+  client_id: string | null
+  party: BillParty
+  bill_name: string
+  /** customer's ICE (companies) */
+  bill_ice: string | null
+  bill_address: string | null
+  lines: InvoiceLine[]
+  vat_rate: number
+  total_ht: number
+  total_vat: number
+  total_ttc: number
+  /** yyyy-mm-dd */
+  issued_at: string
+  due_at: string | null
+  status: InvoiceStatus
+  /** received so far (receipts) */
+  paid: number
+  ref_invoice_id: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type PayMethod = 'cash' | 'transfer' | 'cheque' | 'card' | 'other'
+/** A numbered receipt for money received (R-2026-0001). */
+export interface Payment {
+  id: string
+  no: string
+  deal_id: string | null
+  invoice_id: string | null
+  client_id: string | null
+  party: BillParty
+  payer_name: string
+  amount: number
+  method: PayMethod
+  /** cheque number, transfer reference… */
+  reference: string | null
+  /** yyyy-mm-dd */
+  received_at: string
+  status: 'valid' | 'cancelled'
+  notes: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export type ExpenseCategory = 'rent' | 'salaries' | 'ads' | 'photo' | 'transport' | 'phone' | 'utilities' | 'taxes' | 'fees' | 'office' | 'other'
+export interface Expense {
+  id: string
+  /** yyyy-mm-dd */
+  spent_at: string
+  category: ExpenseCategory
+  label: string
+  amount: number
+  method: PayMethod | null
+  vendor: string | null
+  property_id: string | null
+  deal_id: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Legal identity printed on invoices and receipts (team only). */
+export interface BillingSettings {
+  /** raison sociale */
+  company: string
+  /** SARL, SARL AU, entreprise individuelle… */
+  legal_form: string
+  capital: string
+  address: string
+  city: string
+  /** registre de commerce */
+  rc: string
+  /** identifiant fiscal (IF) */
+  fiscal_id: string
+  /** identifiant commun de l'entreprise (15 digits) */
+  ice: string
+  /** taxe professionnelle (ex-patente) */
+  tp: string
+  cnss: string
+  /** 0 = the agency does not charge VAT */
+  vat_rate: number
+  bank: string
+  rib: string
+  /** payment term in days (0 = on receipt) */
+  payment_days: number
+  /** extra line at the bottom of invoices */
+  footer: string
 }
 
 /* ---------------------------------------------------------------- owners */

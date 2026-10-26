@@ -21,6 +21,8 @@ const KIND: Record<string, { label: string; color: string }> = {
   brokers: { label: ENTITY.broker, color: '#0f766e' },
   mandates: { label: ENTITY.mandate, color: '#a8832f' },
   documents: { label: ENTITY.document, color: '#b45309' },
+  offers: { label: ENTITY.offer, color: '#1d4ed8' },
+  expenses: { label: ENTITY.expense, color: '#b91c1c' },
 }
 
 export function Trash() {

@@ -13,6 +13,7 @@ import { useCan, useNames } from '../hooks'
 import { BROKER_KIND, CLIENT_KIND, PROPERTY_STATUS, SPECIALTIES } from '../labels'
 import { Stars, agreementText } from '../network-dialogs'
 import { printPartnerStatement, type StatementRow } from '../print'
+import { isDone } from '@/shared/lib/billing'
 import { Card, PageHeader, PhoneLinks, Pill, SearchBox, Stat } from '../ui'
 
 type KindFilter = 'all' | BrokerKind
@@ -26,7 +27,9 @@ export function Brokers() {
   const { data: brokers = [], isLoading } = useTable<Broker>('brokers')
   const { data: props = [] } = useTable<Property>('properties')
   const { data: clients = [] } = useTable<Client>('clients')
-  const { data: deals = [] } = useTable<Deal>('deals', { enabled: money })
+  const { data: allDeals = [] } = useTable<Deal>('deals', { enabled: money })
+  // a partner's share is due once the deal is done
+  const deals = useMemo(() => allDeals.filter(isDone), [allDeals])
   const [q, setQ] = useState('')
   const [kind, setKind] = useState<KindFilter>('all')
   const [params, setParams] = useSearchParams()

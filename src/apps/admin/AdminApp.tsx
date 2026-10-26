@@ -29,6 +29,8 @@ import {
   FolderLock,
   Trash2,
   Handshake,
+  Landmark,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -36,10 +38,11 @@ import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-ro
 import { toast } from 'sonner'
 import { useAuth } from '@/shared/lib/auth'
 import { useTable } from '@/shared/lib/data'
-import { phoneKey, sameDay } from '@/shared/lib/format'
+import { isOverdue } from '@/shared/lib/billing'
+import { localDate, phoneKey, sameDay } from '@/shared/lib/format'
 import { I18nProvider } from '@/shared/lib/i18n'
 import { mandateState } from '@/shared/lib/owners'
-import type { Appointment, Broker, Client, Lead, Mandate, Offer, Permission, Property, Task } from '@/shared/lib/types'
+import type { Appointment, Broker, Client, Invoice, Lead, Mandate, Offer, Permission, Property, Task } from '@/shared/lib/types'
 import { Badge, FullSpinner, cn } from '@/shared/ui/base'
 import { Logo } from '@/shared/ui/logo'
 import { Login, Pending, ResetPassword } from './auth-screens'
@@ -55,6 +58,8 @@ const Brokers = lazy(() => import('./pages/Brokers').then((m) => ({ default: m.B
 const Owners = lazy(() => import('./pages/Owners').then((m) => ({ default: m.Owners })))
 const Trash = lazy(() => import('./pages/Trash').then((m) => ({ default: m.Trash })))
 const Offers = lazy(() => import('./pages/Offers').then((m) => ({ default: m.Offers })))
+const DealFile = lazy(() => import('./pages/DealFile').then((m) => ({ default: m.DealFile })))
+const Finance = lazy(() => import('./pages/Finance').then((m) => ({ default: m.Finance })))
 const Calculators = lazy(() => import('./pages/Calculators').then((m) => ({ default: m.Calculators })))
 const Calls = lazy(() => import('./pages/Calls').then((m) => ({ default: m.Calls })))
 const Clients = lazy(() => import('./pages/Clients').then((m) => ({ default: m.Clients })))
@@ -173,6 +178,8 @@ function Shell() {
   const { data: mandates = [] } = useTable<Mandate>('mandates')
   const { data: offers = [] } = useTable<Offer>('offers')
   const openOffers = offers.filter((o) => o.status === 'pending' || o.status === 'countered').length
+  const { data: invoices = [] } = useTable<Invoice>('invoices', { enabled: can('deals') })
+  const overdueInvoices = invoices.filter((i) => isOverdue(i, localDate(new Date()))).length
 
   const newLeads = leads.filter((l) => l.status === 'new').length
   const mandatesDue = mandates.filter((m) => {
@@ -231,6 +238,7 @@ function Shell() {
       title: 'الإدارة',
       items: [
         ...(can('deals') ? [{ to: '/admin/deals', label: 'الصفقات والعمولات', icon: HandCoins }] : []),
+        ...(can('deals') ? [{ to: '/admin/finance', label: 'المالية', icon: Landmark, badge: overdueInvoices, tone: 'danger' as const }] : []),
         ...(isAdmin ? [{ to: '/admin/team', label: 'الفريق', icon: UserCog }] : []),
         ...(can('activity') ? [{ to: '/admin/activity', label: 'سجل النشاط', icon: History }] : []),
         ...(can('settings') ? [{ to: '/admin/settings', label: 'الإعدادات', icon: SettingsIcon }] : []),
@@ -249,7 +257,8 @@ function Shell() {
     { label: 'مهمة', icon: <ClipboardPlus className="size-4" />, onClick: () => quick('task') },
     { label: 'عرض شراء أو كراء', icon: <HandCoins className="size-4" />, onClick: () => quick('offer') },
     { label: 'شريك في الشبكة', icon: <Handshake className="size-4" />, onClick: () => quick('broker') },
-    { label: 'تسجيل صفقة', icon: <BadgeDollarSign className="size-4" />, onClick: () => quick('deal'), hidden: !can('deals') },
+    { label: 'صفقة جديدة', icon: <BadgeDollarSign className="size-4" />, onClick: () => quick('deal', { stage: 'agreement' }), hidden: !can('deals') },
+    { label: 'مصروف', icon: <Wallet className="size-4" />, onClick: () => quick('expense'), hidden: !can('deals') },
   ]
 
   const sidebar = (
@@ -345,6 +354,8 @@ function Shell() {
             <Route path="tasks" element={<Tasks />} />
             <Route path="calls" element={<Calls />} />
             <Route path="deals" element={<Allowed perm="deals"><Deals /></Allowed>} />
+            <Route path="deals/:id" element={<Allowed perm="deals"><DealFile /></Allowed>} />
+            <Route path="finance" element={<Allowed perm="deals"><Finance /></Allowed>} />
             <Route path="team" element={<Allowed><Team /></Allowed>} />
             <Route path="activity" element={<Allowed perm="activity"><Activity /></Allowed>} />
             <Route path="settings" element={<Allowed perm="settings"><Settings /></Allowed>} />

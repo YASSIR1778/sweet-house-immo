@@ -467,6 +467,143 @@ alter table public.re_appointments add column if not exists feedback_price text 
 alter table public.re_appointments add column if not exists feedback_note text;
 
 -- ---------------------------------------------------------------------
+-- Deal file (stages, checklist), invoices, receipts and agency expenses
+-- ---------------------------------------------------------------------
+-- a deal is followed from the agreement to the signature; only «done» deals count as revenue
+alter table public.re_deals add column if not exists stage text not null default 'done';
+alter table public.re_deals add column if not exists checklist jsonb not null default '[]'::jsonb;
+alter table public.re_deals add column if not exists deposit numeric check (deposit >= 0);
+alter table public.re_deals add column if not exists notary text;
+do $$
+begin
+  alter table public.re_deals add constraint re_deals_stage_check check (stage in ('agreement', 'paperwork', 'signing', 'done', 'cancelled'));
+exception when duplicate_object then null;
+end $$;
+
+-- one gap-free number series per year: F = invoice, AV = credit note, R = receipt
+create table if not exists public.re_counters (
+  key text primary key,
+  n integer not null default 0
+);
+
+create table if not exists public.re_invoices (
+  id uuid primary key default gen_random_uuid(),
+  no text not null unique,
+  kind text not null default 'invoice' check (kind in ('invoice', 'credit')),
+  deal_id uuid references public.re_deals (id) on delete set null,
+  client_id uuid references public.re_clients (id) on delete set null,
+  party text not null default 'buyer' check (party in ('seller', 'buyer', 'other')),
+  bill_name text not null check (length(trim(bill_name)) > 0),
+  bill_ice text,
+  bill_address text,
+  -- [{label, qty, unit}] unit price before VAT
+  lines jsonb not null default '[]'::jsonb,
+  vat_rate numeric not null default 0 check (vat_rate >= 0 and vat_rate <= 30),
+  total_ht numeric not null default 0,
+  total_vat numeric not null default 0,
+  total_ttc numeric not null default 0,
+  issued_at date not null default current_date,
+  due_at date,
+  status text not null default 'issued' check (status in ('issued', 'paid', 'cancelled')),
+  paid numeric not null default 0,
+  -- a credit note points to the invoice it cancels
+  ref_invoice_id uuid references public.re_invoices (id) on delete set null,
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists re_invoices_deal_idx on public.re_invoices (deal_id);
+
+create table if not exists public.re_payments (
+  id uuid primary key default gen_random_uuid(),
+  no text not null unique,
+  deal_id uuid references public.re_deals (id) on delete set null,
+  invoice_id uuid references public.re_invoices (id) on delete set null,
+  client_id uuid references public.re_clients (id) on delete set null,
+  party text not null default 'buyer' check (party in ('seller', 'buyer', 'other')),
+  payer_name text not null check (length(trim(payer_name)) > 0),
+  amount numeric not null check (amount > 0),
+  method text not null default 'cash' check (method in ('cash', 'transfer', 'cheque', 'card', 'other')),
+  reference text,
+  received_at date not null default current_date,
+  status text not null default 'valid' check (status in ('valid', 'cancelled')),
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now()
+);
+create index if not exists re_payments_deal_idx on public.re_payments (deal_id);
+
+create table if not exists public.re_expenses (
+  id uuid primary key default gen_random_uuid(),
+  spent_at date not null default current_date,
+  category text not null default 'other' check (category in ('rent', 'salaries', 'ads', 'photo', 'transport', 'phone', 'utilities', 'taxes', 'fees', 'office', 'other')),
+  label text not null check (length(trim(label)) > 0),
+  amount numeric not null check (amount >= 0),
+  method text check (method in ('cash', 'transfer', 'cheque', 'card', 'other')),
+  vendor text,
+  property_id uuid references public.re_properties (id) on delete set null,
+  deal_id uuid references public.re_deals (id) on delete set null,
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists re_expenses_spent_idx on public.re_expenses (spent_at);
+
+-- the number is given by the database in the same transaction as the row: no gap, no duplicate
+create or replace function public.re_number_doc() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  series text;
+  day date;
+  k text;
+  v integer;
+begin
+  if tg_table_name = 're_invoices' then
+    -- saving an existing invoice again keeps its number
+    if exists (select 1 from public.re_invoices where id = new.id) then return new; end if;
+    series := case when new.kind = 'credit' then 'AV' else 'F' end;
+    day := coalesce(new.issued_at, current_date);
+  else
+    if exists (select 1 from public.re_payments where id = new.id) then return new; end if;
+    series := 'R';
+    day := coalesce(new.received_at, current_date);
+  end if;
+  k := series || '-' || extract(year from day)::int;
+  insert into public.re_counters as c (key, n) values (k, 1)
+  on conflict (key) do update set n = c.n + 1
+  returning c.n into v;
+  new.no := k || '-' || lpad(v::text, 4, '0');
+  return new;
+end $$;
+
+drop trigger if exists re_number_invoice on public.re_invoices;
+create trigger re_number_invoice before insert on public.re_invoices for each row execute function public.re_number_doc();
+drop trigger if exists re_number_payment on public.re_payments;
+create trigger re_number_payment before insert on public.re_payments for each row execute function public.re_number_doc();
+
+-- an issued invoice or receipt is never rewritten: it is cancelled (an invoice by a credit note)
+create or replace function public.re_lock_doc() returns trigger
+language plpgsql as $$
+declare
+  free text[] := array['status', 'paid', 'notes', 'due_at', 'deal_id', 'client_id', 'invoice_id', 'updated_at'];
+begin
+  if (to_jsonb(old) - free) is distinct from (to_jsonb(new) - free) then
+    raise exception 'document_locked: cancel it and issue a new one' using errcode = 'check_violation';
+  end if;
+  if old.status = 'cancelled' and new.status <> 'cancelled' then
+    raise exception 'document_locked: a cancelled document stays cancelled' using errcode = 'check_violation';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists re_lock_invoice on public.re_invoices;
+create trigger re_lock_invoice before update on public.re_invoices for each row execute function public.re_lock_doc();
+drop trigger if exists re_lock_payment on public.re_payments;
+create trigger re_lock_payment before update on public.re_payments for each row execute function public.re_lock_doc();
+
+-- ---------------------------------------------------------------------
 -- Trash: every deleted record is kept 30 days and can be restored
 -- ---------------------------------------------------------------------
 create table if not exists public.re_trash (
@@ -487,14 +624,14 @@ declare
   j jsonb := to_jsonb(old);
 begin
   insert into public.re_trash (table_name, row_id, label, data, deleted_by)
-  values (tg_table_name, old.id, coalesce(j ->> 'ref', j ->> 'full_name', j ->> 'name', j ->> 'title', j ->> 'caller_name', ''), j, auth.uid());
+  values (tg_table_name, old.id, coalesce(j ->> 'ref', j ->> 'full_name', j ->> 'name', j ->> 'title', j ->> 'caller_name', j ->> 'label', ''), j, auth.uid());
   return old;
 end $$;
 
 do $$
 declare t text;
 begin
-  foreach t in array array['re_properties', 're_clients', 're_leads', 're_appointments', 're_tasks', 're_calls', 're_deals', 're_brokers', 're_mandates', 're_documents', 're_offers'] loop
+  foreach t in array array['re_properties', 're_clients', 're_leads', 're_appointments', 're_tasks', 're_calls', 're_deals', 're_brokers', 're_mandates', 're_documents', 're_offers', 're_expenses'] loop
     execute format('drop trigger if exists re_trash_%1$s on public.%1$s', t);
     execute format('create trigger re_trash_%1$s before delete on public.%1$s for each row execute function public.re_to_trash()', t);
   end loop;
@@ -526,6 +663,10 @@ drop trigger if exists re_touch_mandates on public.re_mandates;
 create trigger re_touch_mandates before update on public.re_mandates for each row execute function public.re_touch();
 drop trigger if exists re_touch_offers on public.re_offers;
 create trigger re_touch_offers before update on public.re_offers for each row execute function public.re_touch();
+drop trigger if exists re_touch_invoices on public.re_invoices;
+create trigger re_touch_invoices before update on public.re_invoices for each row execute function public.re_touch();
+drop trigger if exists re_touch_expenses on public.re_expenses;
+create trigger re_touch_expenses before update on public.re_expenses for each row execute function public.re_touch();
 
 -- ---------------------------------------------------------------------
 -- Anti-spam: at most 3 website requests per phone number every 10 minutes
@@ -651,6 +792,28 @@ alter table public.re_documents enable row level security;
 alter table public.re_price_history enable row level security;
 alter table public.re_trash enable row level security;
 alter table public.re_offers enable row level security;
+alter table public.re_counters enable row level security;
+alter table public.re_invoices enable row level security;
+alter table public.re_payments enable row level security;
+alter table public.re_expenses enable row level security;
+
+-- invoices and receipts: the «deals» permission; never deleted (an invoice is cancelled by a credit note).
+-- re_counters has no policy: only the numbering trigger touches it.
+do $$
+declare t text;
+begin
+  foreach t in array array['re_invoices', 're_payments', 're_expenses'] loop
+    execute format('drop policy if exists %1$s_select on public.%1$s', t);
+    execute format('create policy %1$s_select on public.%1$s for select to authenticated using ((select public.re_can(''deals'')))', t);
+    execute format('drop policy if exists %1$s_insert on public.%1$s', t);
+    execute format('create policy %1$s_insert on public.%1$s for insert to authenticated with check ((select public.re_can(''deals'')))', t);
+    execute format('drop policy if exists %1$s_update on public.%1$s', t);
+    execute format('create policy %1$s_update on public.%1$s for update to authenticated using ((select public.re_can(''deals''))) with check ((select public.re_can(''deals'')))', t);
+  end loop;
+end $$;
+-- expenses: deleting also needs «delete» (they go to the trash)
+drop policy if exists re_expenses_delete on public.re_expenses;
+create policy re_expenses_delete on public.re_expenses for delete to authenticated using ((select public.re_can('deals')) and (select public.re_can('delete')));
 
 -- offers: every member reads, records and updates them; deleting needs «delete»
 drop policy if exists re_offers_select on public.re_offers;

@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { DEFAULT_SETTINGS } from './config'
+import { DEFAULT_BILLING } from './billing'
 import { DEFAULT_NETWORK } from './fee-defaults'
 import { repo, type Row, type TableName } from './repo'
-import type { NetworkSettings, Property, Settings } from './types'
+import type { BillingSettings, NetworkSettings, Property, Settings } from './types'
 
 export function useTable<T extends Row>(table: TableName, opts?: { enabled?: boolean; refetchInterval?: number }) {
   return useQuery({
@@ -65,6 +66,27 @@ export function useSaveNetwork() {
     mutationFn: (value: NetworkSettings) => repo.savePrivate('network', value),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['private', 'network'] })
+    },
+  })
+}
+
+/** Legal identity printed on invoices and receipts (team only). */
+export function useBilling(enabled = true) {
+  return useQuery({
+    queryKey: ['private', 'billing'],
+    queryFn: async () => ({ ...DEFAULT_BILLING, ...((await repo.getPrivate<Partial<BillingSettings>>('billing')) ?? {}) }) as BillingSettings,
+    placeholderData: DEFAULT_BILLING,
+    staleTime: 60_000,
+    enabled,
+  })
+}
+
+export function useSaveBilling() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (value: BillingSettings) => repo.savePrivate('billing', value),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['private', 'billing'] })
     },
   })
 }
