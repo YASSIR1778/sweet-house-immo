@@ -49,19 +49,23 @@ language plpgsql security definer set search_path = public as $$
 declare
   is_owner boolean;
 begin
-  select exists (select 1 from public.re_config where lower(owner_email) = lower(coalesce(new.email, ''))) into is_owner;
-  if not is_owner and coalesce(new.raw_user_meta_data ->> 'app', '') <> 'sweet-house-immo' then
-    return new; -- account of another app sharing this project
-  end if;
-  insert into public.re_staff (id, full_name, email, role, active)
-  values (
-    new.id,
-    coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), split_part(coalesce(new.email, ''), '@', 1)),
-    coalesce(new.email, ''),
-    case when is_owner then 'admin' else 'secretary' end,
-    is_owner
-  )
-  on conflict (id) do nothing;
+  begin
+    select exists (select 1 from public.re_config where lower(owner_email) = lower(coalesce(new.email, ''))) into is_owner;
+    if not is_owner and coalesce(new.raw_user_meta_data ->> 'app', '') <> 'sweet-house-immo' then
+      return new; -- account of another app sharing this project
+    end if;
+    insert into public.re_staff (id, full_name, email, role, active)
+    values (
+      new.id,
+      coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), split_part(coalesce(new.email, ''), '@', 1)),
+      coalesce(new.email, ''),
+      case when is_owner then 'admin' else 'secretary' end,
+      is_owner
+    )
+    on conflict (id) do nothing;
+  exception when others then
+    null; -- never block account creation for any app using this project
+  end;
   return new;
 end $$;
 
@@ -69,6 +73,38 @@ drop trigger if exists re_on_auth_user_created on auth.users;
 create trigger re_on_auth_user_created
   after insert on auth.users
   for each row execute function public.re_handle_new_user();
+
+-- A signed-in account without a team row (created before these tables, or in the Supabase
+-- dashboard) joins the team on its first sign-in:
+--   the owner's e-mail above → active admin ; anyone else → inactive, waits for the owner's approval.
+create or replace function public.re_join() returns public.re_staff
+language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_email text;
+  v_name text;
+  v_owner boolean := false;
+  v_row public.re_staff;
+begin
+  if v_uid is null then
+    raise exception 'not_signed_in';
+  end if;
+  select * into v_row from public.re_staff where id = v_uid;
+  if found then
+    return v_row;
+  end if;
+  select u.email, coalesce(nullif(u.raw_user_meta_data ->> 'full_name', ''), split_part(coalesce(u.email, ''), '@', 1))
+    into v_email, v_name
+  from auth.users u where u.id = v_uid;
+  select exists (select 1 from public.re_config where lower(owner_email) = lower(coalesce(v_email, ''))) into v_owner;
+  insert into public.re_staff (id, full_name, email, role, active)
+  values (v_uid, coalesce(v_name, ''), coalesce(v_email, ''), case when v_owner then 'admin' else 'secretary' end, v_owner)
+  on conflict (id) do nothing;
+  select * into v_row from public.re_staff where id = v_uid;
+  return v_row;
+end $$;
+revoke execute on function public.re_join() from public, anon;
+grant execute on function public.re_join() to authenticated;
 
 -- ---------------------------------------------------------------------
 -- Website settings (public content, edited by the owner)
@@ -284,19 +320,30 @@ drop trigger if exists re_leads_rate_limit on public.re_leads;
 create trigger re_leads_rate_limit before insert on public.re_leads for each row execute function public.re_leads_rate_limit();
 
 -- ---------------------------------------------------------------------
--- Public website: a view WITHOUT private columns, and a view counter
+-- Public website: published properties WITHOUT private columns, and a view counter
 -- ---------------------------------------------------------------------
-create or replace view public.re_public_properties as
-select
-  id, ref, title, title_fr, title_es, description, description_fr, description_es,
-  type, purpose, price, area, land_area, rooms, bedrooms, bathrooms, floor, floors, year_built,
-  furnished, features, neighborhood, city, address, lat, lng, images, video_url,
-  status, featured, published, views, created_at, updated_at,
-  null::uuid as owner_client_id, null::text as private_notes, null::uuid as created_by
-from public.re_properties
-where published and status <> 'draft';
+drop view if exists public.re_public_properties;
 
-grant select on public.re_public_properties to anon, authenticated;
+create or replace function public.re_public_properties(p_ref text default null)
+returns table (
+  id uuid, ref text, title text, title_fr text, title_es text, description text, description_fr text, description_es text,
+  type text, purpose text, price numeric, area numeric, land_area numeric, rooms int, bedrooms int, bathrooms int,
+  floor int, floors int, year_built int, furnished boolean, features text[], neighborhood text, city text, address text,
+  lat double precision, lng double precision, images text[], video_url text, status text, featured boolean,
+  published boolean, views int, created_at timestamptz, updated_at timestamptz
+)
+language sql stable security definer set search_path = public as $$
+  select p.id, p.ref, p.title, p.title_fr, p.title_es, p.description, p.description_fr, p.description_es,
+         p.type, p.purpose, p.price, p.area, p.land_area, p.rooms, p.bedrooms, p.bathrooms,
+         p.floor, p.floors, p.year_built, p.furnished, p.features, p.neighborhood, p.city, p.address,
+         p.lat, p.lng, p.images, p.video_url, p.status, p.featured,
+         p.published, p.views, p.created_at, p.updated_at
+  from public.re_properties p
+  where p.published and p.status <> 'draft'
+    and (p_ref is null or p.ref = p_ref or p.id::text = p_ref)
+  order by p.featured desc, p.created_at desc
+$$;
+grant execute on function public.re_public_properties(text) to anon, authenticated;
 
 create or replace function public.re_increment_views(p_id uuid) returns void
 language sql security definer set search_path = public as $$
@@ -394,8 +441,7 @@ drop policy if exists re_images_delete on storage.objects;
 create policy re_images_delete on storage.objects for delete to authenticated using (bucket_id = 'property-images' and (select public.re_is_staff()));
 
 -- ---------------------------------------------------------------------
--- If the owner account already existed before running this file:
---   insert into public.re_staff (id, full_name, email, role, active)
---   select id, 'اسمك', email, 'admin', true from auth.users where email = 'OWNER_EMAIL@example.com'
---   on conflict (id) do update set role = 'admin', active = true;
+-- Existing accounts need nothing more: on their first sign-in to /admin the app calls re_join().
+-- To make an existing account admin by hand:
+--   update public.re_staff set role = 'admin', active = true where email = 'OWNER_EMAIL@example.com';
 -- ---------------------------------------------------------------------

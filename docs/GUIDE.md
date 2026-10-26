@@ -67,44 +67,49 @@ npm run dev
 
 ## 3) التشغيل الحقيقي بقاعدة بيانات (Supabase — مجاني)
 
-### أ. إنشاء المشروع
-1. ادخل إلى **supabase.com** بحسابك ← **New project**.
-2. الاسم: `sweet-house-immo` — المنطقة: **Europe (Frankfurt أو Paris)** — اختر كلمة مرور قوية للقاعدة واحفظها.
+الوكالة لها **حساب Supabase خاص بها**، منفصل تماماً عن حساب المكتبة: الخطة المجانية لا تسمح إلا بمشروعين لكل شخص، والفصل يمنع أي خلط بين النشاطين.
 
-> الأفضل مشروع مستقل عن مشروع المكتبة. إن اضطررت لاستعمال نفس المشروع فلا مشكلة: كل الجداول تبدأ بـ `re_` ولا تلمس جداول المكتبة.
+### أ. إنشاء الحساب والمشروع (تفعلها أنت)
+1. ادخل إلى **supabase.com/dashboard/sign-up** وسجّل **ببريد الوكالة وكلمة مرور**، وليس بزر GitHub (زر GitHub يُدخلك إلى حساب المكتبة).
+2. افتح رسالة التأكيد في بريدك واضغط الرابط.
+3. أنشئ **Organization** بالخطة **Free**، ثم **New project**:
+   - الاسم: `sweet-house-immo`
+   - **Database password:** اضغط «Generate» واحفظها في مكان آمن (لن تحتاجها يومياً).
+   - المنطقة: **Europe — Frankfurt (eu-central-1)**.
+4. انتظر دقيقتين حتى يصبح المشروع جاهزاً.
 
 ### ب. إنشاء الجداول
-1. افتح الملف `supabase/schema.sql`.
-2. في السطر الذي فيه `OWNER_EMAIL@example.com` **اكتب بريدك الإلكتروني** (هذا البريد سيصبح حساب المدير).
-3. في Supabase: **SQL Editor ← New query** ← الصق الملف كاملاً ← **Run**.
+1. افتح الملف `supabase/schema.sql`، وفي السطر الذي فيه `OWNER_EMAIL@example.com` اكتب **البريد الذي ستدخل به لوحة الوكالة**: هذا الحساب يصبح مديراً تلقائياً.
+2. في Supabase: **SQL Editor ← New query** ← الصق الملف كاملاً ← **Run**. يجب أن تظهر «Success».
 
 ### ج. إعدادات الدخول
 في **Authentication ← URL Configuration**:
 - **Site URL:** `https://yassir1778.github.io/sweet-house-immo/admin`
-- **Redirect URLs:** أضف `https://yassir1778.github.io/sweet-house-immo/admin/reset` و `http://localhost:5174/sweet-house-immo/admin/reset`
+- **Redirect URLs:** أضف `https://yassir1778.github.io/sweet-house-immo/**`
 
 ### د. ربط الموقع بالقاعدة
-1. في Supabase: **Project Settings ← API** انسخ **Project URL** و**Publishable key** (أو anon key).
-   > هذان المفتاحان عموميان وآمنان (الحماية مضمونة بقواعد الصلاحيات في القاعدة). **لا تنسخ أبداً مفتاح service_role أو secret.**
-2. في GitHub: المستودع ← **Settings ← Secrets and variables ← Actions ← Variables** ← أضف:
+1. في Supabase: زر **Connect** أعلى الصفحة، أو **Project Settings ← API Keys**: انسخ **Project URL** و**Publishable key** (يبدأ بـ `sb_publishable_`).
+   > هذان عموميان وآمنان: الحماية مضمونة بقواعد الصلاحيات داخل القاعدة. **لا تشارك أبداً مفتاح `secret` أو `service_role` ولا كلمة مرور القاعدة.**
+2. أضفهما في GitHub: المستودع ← **Settings ← Secrets and variables ← Actions ← Variables**:
    - `VITE_SUPABASE_URL` = رابط المشروع
    - `VITE_SUPABASE_ANON_KEY` = المفتاح العمومي
-3. للتجربة على جهازك: انسخ `.env.example` إلى `.env.local` واملأ نفس القيمتين.
+3. أعد النشر: **Actions ← Deploy to GitHub Pages ← Run workflow**. بعد دقيقتين يعمل الموقع بالقاعدة الحقيقية.
+4. للتجربة على جهازك: انسخ `.env.example` إلى `.env.local` واملأ نفس القيمتين.
 
 ### هـ. إنشاء الحسابات
-1. افتح `/admin` ← **«عضو جديد؟ أنشئ حساباً»** ← سجّل **ببريدك المكتوب في الملف** ← يصبح حسابك **مديراً** مباشرة.
-2. الكاتبة تفعل نفس الشيء ببريدها ← يظهر حسابها عندك في **الفريق** ← اضغط **«تفعيل الآن»**.
-3. (اختياري) بعد إنشاء كل الحسابات: **Authentication ← Sign In / Providers ← Allow new users to sign up = Off**.
+1. افتح `/admin` ← **«عضو جديد؟ أنشئ حساباً»** ← سجّل **بالبريد المكتوب في الملف** ← أكّد بريدك من الرسالة ← ادخل: أنت **المدير**.
+2. الكاتبة تفعل نفس الشيء ببريدها ← يظهر حسابها عندك في **الفريق** ← **«تفعيل الآن»**.
+3. (اختياري) بعد إنشاء كل الحسابات: **Authentication ← Sign In / Providers ← Allow new users to sign up = Off**. بعدها تُنشئ أي حساب جديد من **Authentication ← Users ← Add user**، ويظهر عندك في «الفريق» بعد أول دخول له.
 
-> إن كان Supabase يطلب تأكيد البريد الإلكتروني، افتح الرسالة واضغط الرابط قبل الدخول.
+### و. الظهور في Google
+الموقع الحقيقي **لا يظهر في Google** حتى تقرر ذلك، حتى تضيف عقاراتك الحقيقية وتصحح معلومات الوكالة أولاً. عندما تكون جاهزاً: أضف في متغيرات GitHub `VITE_ALLOW_INDEXING` = `true` ثم أعد النشر.
 
 ---
 
 ## 4) النشر على الإنترنت (GitHub Pages — مجاني)
 
-1. أنشئ مستودعاً باسم `sweet-house-immo` في حسابك على GitHub وارفع هذا المجلد.
-2. **Settings ← Pages ← Source = GitHub Actions**.
-3. كل تعديل يُرفع إلى الفرع `main` يُنشر تلقائياً على: `https://yassir1778.github.io/sweet-house-immo/`
+- المستودع: `github.com/YASSIR1778/sweet-house-immo`، والموقع: `https://yassir1778.github.io/sweet-house-immo/`
+- كل تعديل يُرفع إلى الفرع `main` يُنشر تلقائياً خلال دقيقتين تقريباً (**Actions** تعرض حالة النشر).
 
 ### نطاق خاص لاحقاً (مثلاً immo.sweethouse.ma)
 - غيّر `VITE_BASE` إلى `/` في ملف `.github/workflows/deploy.yml`، وأضف النطاق في **Settings ← Pages ← Custom domain**، ثم حدّث روابط Supabase (الخطوة ج).

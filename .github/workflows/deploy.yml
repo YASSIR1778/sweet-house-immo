@@ -22,6 +22,8 @@ jobs:
       # Fill them in once the Supabase project exists; empty = demo mode.
       VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+      # set to "true" when the real site is ready to appear on Google
+      VITE_ALLOW_INDEXING: ${{ vars.VITE_ALLOW_INDEXING }}
       VITE_BASE: /sweet-house-immo/
     steps:
       - uses: actions/checkout@v4

@@ -37,7 +37,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null)
       return
     }
-    const staff = await loadStaff(sessionUser.id)
+    let staff = await loadStaff(sessionUser.id)
+    if (!staff) {
+      // account created before the tables, or in the Supabase dashboard: join the team
+      const { data } = await getSupabase().rpc('re_join')
+      staff = (data as Staff | null) ?? null
+    }
     setUser({
       id: sessionUser.id,
       email: sessionUser.email ?? '',

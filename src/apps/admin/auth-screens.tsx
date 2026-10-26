@@ -42,6 +42,14 @@ function AuthFrame({ children }: { children: ReactNode }) {
   )
 }
 
+function authError(err: string): string {
+  if (/invalid login credentials|invalid/i.test(err)) return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.'
+  if (/email not confirmed/i.test(err)) return 'أكّد بريدك الإلكتروني أولاً من الرسالة التي وصلتك، ثم سجّل الدخول.'
+  if (/signups? not allowed|signup.*disabled/i.test(err)) return 'إنشاء الحسابات من هنا مغلق. اطلب من المدير إنشاء حسابك من لوحة Supabase، ثم سجّل الدخول.'
+  if (/rate limit|too many/i.test(err)) return 'محاولات كثيرة. انتظر دقيقة ثم أعد المحاولة.'
+  return err
+}
+
 export function Login() {
   const { mode, demoSignIn, signIn, signUp, resetPassword } = useAuth()
   const [view, setView] = useState<'login' | 'signup' | 'reset'>('login')
@@ -90,15 +98,15 @@ export function Login() {
     try {
       if (view === 'login') {
         const err = await signIn(f.email, f.password)
-        if (err) setMsg(/invalid/i.test(err) ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : err)
+        if (err) setMsg(authError(err))
       } else if (view === 'signup') {
         if (f.password.length < 8) return setMsg('كلمة المرور يجب أن تتكون من 8 أحرف على الأقل.')
         const err = await signUp(f.email, f.password, f.name)
-        if (err) setMsg(err)
+        if (err) setMsg(authError(err))
         else setMsg('تم إنشاء الحساب. إن طُلب منك تأكيد البريد الإلكتروني فافتح الرسالة، ثم انتظر تفعيل المدير لحسابك.')
       } else {
         const err = await resetPassword(f.email)
-        setMsg(err ?? 'أرسلنا لك رابطاً لإعادة تعيين كلمة المرور. تحقق من بريدك.')
+        setMsg(err ? authError(err) : 'أرسلنا لك رابطاً لإعادة تعيين كلمة المرور. تحقق من بريدك.')
       }
     } finally {
       setBusy(false)

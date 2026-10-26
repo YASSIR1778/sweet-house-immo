@@ -55,8 +55,6 @@ function stripPrivate(p: Property): Property {
   return { ...p, private_notes: null, owner_client_id: null }
 }
 
-const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
-
 /* ------------------------------------------------------------------ */
 /* Demo mode: everything in localStorage, seeded with sample data        */
 /* ------------------------------------------------------------------ */
@@ -216,15 +214,15 @@ class SupabaseRepo implements Repo {
     await this.sb.from(TABLE.activity).insert(row)
   }
   async publicProperties(): Promise<Property[]> {
-    const { data, error } = await this.sb.from('re_public_properties').select('*').order('featured', { ascending: false }).order('created_at', { ascending: false })
+    const { data, error } = await this.sb.rpc('re_public_properties')
     if (error) throw error
     return ((data ?? []) as Property[]).map(stripPrivate)
   }
   async publicProperty(refOrId: string): Promise<Property | null> {
-    const q = this.sb.from('re_public_properties').select('*')
-    const { data, error } = await (isUuid(refOrId) ? q.eq('id', refOrId) : q.eq('ref', refOrId)).maybeSingle()
+    const { data, error } = await this.sb.rpc('re_public_properties', { p_ref: refOrId })
     if (error) throw error
-    return data ? stripPrivate(data as Property) : null
+    const row = ((data ?? []) as Property[])[0]
+    return row ? stripPrivate(row) : null
   }
   async incrementViews(id: string): Promise<void> {
     await this.sb.rpc('re_increment_views', { p_id: id })

@@ -11,8 +11,10 @@ const BASE = `${ORIGIN}${BASE_PATH}`
 const ROUTES = ['biens', 'vendre', 'agence', 'contact', 'favoris', 'admin']
 
 // Demo build (no database): sample listings must never be indexed by Google.
+// Live build: indexed only once the owner decides (repository variable VITE_ALLOW_INDEXING=true).
 const DEMO = !process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_ANON_KEY
-if (DEMO) {
+const NOINDEX = DEMO || process.env.VITE_ALLOW_INDEXING !== 'true'
+if (NOINDEX) {
   const html = readFileSync(`${DIST}/index.html`, 'utf8').replace('<head>', '<head>\n    <meta name="robots" content="noindex, nofollow" />')
   writeFileSync(`${DIST}/index.html`, html)
 }
@@ -31,8 +33,10 @@ async function propertyPages() {
   const key = process.env.VITE_SUPABASE_ANON_KEY
   if (!api || !key) return []
   try {
-    const r = await fetch(`${api}/rest/v1/re_public_properties?select=ref,updated_at`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    const r = await fetch(`${api}/rest/v1/rpc/re_public_properties`, {
+      method: 'POST',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: '{}',
     })
     if (!r.ok) return []
     return (await r.json()).map((x) => ({ path: `biens/${x.ref}`, lastmod: String(x.updated_at ?? today).slice(0, 10) }))
@@ -64,6 +68,6 @@ writeFileSync(
 )
 writeFileSync(
   `${DIST}/robots.txt`,
-  DEMO ? `User-agent: *\nDisallow: /\n` : `User-agent: *\nAllow: ${BASE_PATH}/\nDisallow: ${BASE_PATH}/admin/\nSitemap: ${BASE}/sitemap.xml\n`,
+  NOINDEX ? `User-agent: *\nDisallow: /\n` : `User-agent: *\nAllow: ${BASE_PATH}/\nDisallow: ${BASE_PATH}/admin/\nSitemap: ${BASE}/sitemap.xml\n`,
 )
-console.log(`postbuild${DEMO ? ' (demo, noindex)' : ''}: routes, 404, sitemap (+${dynamic.length} property pages), robots`)
+console.log(`postbuild${DEMO ? ' (demo)' : ' (live)'}${NOINDEX ? ' noindex' : ' indexable'}: routes, 404, sitemap (+${dynamic.length} property pages), robots`)
