@@ -6,7 +6,7 @@ import { fmtDate, fmtDateTime, fmtNumber, fmtPrice, fmtRelative, nowIso } from '
 import type { Lead, LeadKind, LeadSource, LeadStatus } from '@/shared/lib/types'
 import { Button, Drawer, Field, Segmented, Select, Textarea, cn } from '@/shared/ui/base'
 import { StaffSelect, useQuickAdd } from '../dialogs'
-import { useDeleteRow, useIsAdmin, useLookups, useMe, useNames, useSave } from '../hooks'
+import { useCan, useDeleteRow, useLookups, useMe, useNames, useSave } from '../hooks'
 import { LANG_LABEL, LEAD_KIND, LEAD_STATUS, LEAD_STATUS_ORDER, PURPOSE, SOURCE } from '../labels'
 import { leadReply } from '../templates'
 import { Avatar, PageHeader, PhoneLinks, Pill, SearchBox } from '../ui'
@@ -234,7 +234,7 @@ export function Leads() {
 
 function LeadDrawer({ lead, onClose }: { lead: Lead; onClose: () => void }) {
   const me = useMe()
-  const isAdmin = useIsAdmin()
+  const can = useCan()
   const quick = useQuickAdd()
   const L = useLookups()
   const { s, hoodName, typeName } = useNames()
@@ -285,7 +285,7 @@ function LeadDrawer({ lead, onClose }: { lead: Lead; onClose: () => void }) {
         </span>
       }
       footer={
-        isAdmin ? (
+        can('delete') ? (
           <Button
             variant="ghost"
             className="me-auto text-danger"

@@ -9,7 +9,7 @@ import { repo } from '@/shared/lib/repo'
 import type { Property, PropertyStatus, Purpose } from '@/shared/lib/types'
 import { ButtonLink, EmptyState, Segmented, Select, Switch, cn } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
-import { nextRef, useDeleteRow, useIsAdmin, useNames, useSave } from '../hooks'
+import { nextRef, useCan, useDeleteRow, useNames, useSave } from '../hooks'
 import { PROPERTY_STATUS, PURPOSE } from '../labels'
 import { printPropertySheet } from '../print'
 import { propertyMessage } from '../templates'
@@ -26,7 +26,8 @@ function readView(): 'table' | 'grid' {
 }
 
 export function Properties() {
-  const isAdmin = useIsAdmin()
+  const can = useCan()
+  const canEdit = can('properties')
   const nav = useNavigate()
   const { data = [], isLoading } = useTable<Property>('properties')
   const { s, hoodName, typeName } = useNames()
@@ -98,10 +99,10 @@ export function Properties() {
     { label: 'نسخ الرابط', icon: <Copy className="size-4" />, onClick: () => void copyLink(p), hidden: !p.published },
     { label: 'إرسال عبر واتساب', icon: <WhatsAppIcon className="size-4" />, onClick: () => window.open(`https://wa.me/?text=${encodeURIComponent(propertyMessage(p, s, 'ar'))}`, '_blank', 'noopener'), hidden: !p.published },
     { label: 'طباعة بطاقة الواجهة', icon: <Printer className="size-4" />, onClick: () => void printPropertySheet(p, s, hoodName) },
-    { label: p.featured ? 'إلغاء التمييز' : 'تمييز في الصفحة الرئيسية', icon: p.featured ? <StarOff className="size-4" /> : <Star className="size-4" />, onClick: () => save({ ...p, featured: !p.featured, updated_at: nowIso() }, { message: p.featured ? 'أُلغي التمييز' : 'سيظهر في «اختياراتنا» ★' }) },
-    { label: p.published ? 'إخفاء من الموقع' : 'نشر على الموقع', icon: p.published ? <EyeOff className="size-4" /> : <Eye className="size-4" />, onClick: () => togglePublish(p) },
-    { label: 'إنشاء نسخة', icon: <CopyPlus className="size-4" />, onClick: () => void duplicate(p) },
-    { label: 'حذف', icon: <Trash2 className="size-4" />, onClick: () => void remove(p), danger: true, hidden: !isAdmin },
+    { label: p.featured ? 'إلغاء التمييز' : 'تمييز في الصفحة الرئيسية', icon: p.featured ? <StarOff className="size-4" /> : <Star className="size-4" />, onClick: () => save({ ...p, featured: !p.featured, updated_at: nowIso() }, { message: p.featured ? 'أُلغي التمييز' : 'سيظهر في «اختياراتنا» ★' }), hidden: !canEdit },
+    { label: p.published ? 'إخفاء من الموقع' : 'نشر على الموقع', icon: p.published ? <EyeOff className="size-4" /> : <Eye className="size-4" />, onClick: () => togglePublish(p), hidden: !canEdit },
+    { label: 'إنشاء نسخة', icon: <CopyPlus className="size-4" />, onClick: () => void duplicate(p), hidden: !canEdit },
+    { label: 'حذف', icon: <Trash2 className="size-4" />, onClick: () => void remove(p), danger: true, hidden: !can('delete') },
   ]
 
   return (
@@ -111,9 +112,11 @@ export function Properties() {
         subtitle={`${data.length} عقار في المحفظة · ${count('live')} منشور على الموقع`}
         icon={<Building2 className="size-6" />}
         actions={
-          <ButtonLink to="/admin/properties/new" variant="gold" icon={<Plus className="size-4" />}>
-            عقار جديد
-          </ButtonLink>
+          canEdit ? (
+            <ButtonLink to="/admin/properties/new" variant="gold" icon={<Plus className="size-4" />}>
+              عقار جديد
+            </ButtonLink>
+          ) : undefined
         }
       />
 
@@ -169,7 +172,7 @@ export function Properties() {
           </div>
         ) : list.length === 0 ? (
           <div className="p-6">
-            <EmptyState icon={<Building2 className="size-7" />} title="لا توجد عقارات هنا" text={q || purpose || type ? 'جرّب تغيير البحث أو الفلاتر.' : 'ابدأ بإضافة أول عقار.'} action={<ButtonLink to="/admin/properties/new" variant="gold">إضافة عقار</ButtonLink>} />
+            <EmptyState icon={<Building2 className="size-7" />} title="لا توجد عقارات هنا" text={q || purpose || type ? 'جرّب تغيير البحث أو الفلاتر.' : 'ابدأ بإضافة أول عقار.'} action={canEdit ? <ButtonLink to="/admin/properties/new" variant="gold">إضافة عقار</ButtonLink> : undefined} />
           </div>
         ) : view === 'table' ? (
           <div className="overflow-x-auto">
@@ -215,7 +218,7 @@ export function Properties() {
                       {p.rooms ? <div className="text-xs">{p.rooms} غرف</div> : null}
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
-                      <Select value={p.status} onChange={(e) => setStatus(p, e.target.value as PropertyStatus)} className="h-9 w-[118px] py-1 text-xs font-semibold" style={{ color: PROPERTY_STATUS[p.status].color }}>
+                      <Select value={p.status} disabled={!canEdit} onChange={(e) => setStatus(p, e.target.value as PropertyStatus)} className="h-9 w-[118px] py-1 text-xs font-semibold" style={{ color: PROPERTY_STATUS[p.status].color }}>
                         {(Object.keys(PROPERTY_STATUS) as PropertyStatus[]).map((k) => (
                           <option key={k} value={k}>
                             {PROPERTY_STATUS[k].label}
@@ -224,7 +227,7 @@ export function Properties() {
                       </Select>
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
-                      <Switch checked={p.published && p.status !== 'draft'} onChange={() => togglePublish(p)} />
+                      <Switch checked={p.published && p.status !== 'draft'} onChange={() => togglePublish(p)} disabled={!canEdit} />
                     </td>
                     <td className="num text-muted">{fmtNumber(p.views)}</td>
                     <td className="text-xs whitespace-nowrap text-muted">{fmtDate(p.updated_at)}</td>

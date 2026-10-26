@@ -1,4 +1,4 @@
-import type { Settings } from './types'
+import type { Permission, Settings } from './types'
 
 /** Live site (Supabase configured): no sample figures or testimonials — only what the owner enters. */
 const LIVE = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
@@ -157,6 +157,6 @@ export const PROPERTY_TYPES = [
 ] as const
 
 export const DEMO_USERS = {
-  admin: { id: 'demo-admin', email: 'owner@demo', name: 'ياسر (المدير)', role: 'admin' as const, active: true },
-  secretary: { id: 'demo-secretary', email: 'secretary@demo', name: 'سلمى (الكاتبة)', role: 'secretary' as const, active: true },
+  admin: { id: 'demo-admin', email: 'owner@demo', name: 'ياسر (المدير)', role: 'admin' as const, active: true, title: null, permissions: [] as Permission[] },
+  secretary: { id: 'demo-secretary', email: 'secretary@demo', name: 'سلمى (الكاتبة)', role: 'secretary' as const, active: true, title: 'كاتبة', permissions: ['properties'] as Permission[] },
 }

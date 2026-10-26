@@ -32,6 +32,15 @@ create table if not exists public.re_staff (
   created_at timestamptz not null default now()
 );
 
+-- Job title shown in the team, and what a member may do besides the daily work
+-- (requests, clients, agenda, tasks, calls). The admin role can do everything;
+-- the owner picks everyone else's permissions in the dashboard («الفريق»).
+alter table public.re_staff add column if not exists title text;
+alter table public.re_staff add column if not exists permissions text[] not null default '{properties}';
+alter table public.re_staff drop constraint if exists re_staff_permissions_check;
+alter table public.re_staff add constraint re_staff_permissions_check
+  check (permissions <@ array['properties', 'delete', 'deals', 'reports', 'export', 'settings', 'activity']);
+
 create or replace function public.re_is_staff() returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.re_staff where id = auth.uid() and active)
@@ -41,6 +50,33 @@ create or replace function public.re_is_admin() returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.re_staff where id = auth.uid() and active and role = 'admin')
 $$;
+
+-- true when the signed-in member is active and is an admin or holds this permission
+create or replace function public.re_can(p_perm text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.re_staff
+    where id = auth.uid() and active and (role = 'admin' or p_perm = any (permissions))
+  )
+$$;
+
+-- The owner's account always stays an active admin with the same e-mail:
+-- nobody (not even another admin) can lock the agency out.
+create or replace function public.re_staff_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if exists (select 1 from public.re_config where lower(owner_email) = lower(old.email)) then
+    new.email := old.email;
+    new.role := 'admin';
+    new.active := true;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists re_staff_guard on public.re_staff;
+create trigger re_staff_guard
+  before update on public.re_staff
+  for each row execute function public.re_staff_guard();
 
 -- Every new account from this app gets a staff row:
 --   the owner's e-mail → active admin ; anyone else → inactive secretary (waits for approval).
@@ -365,7 +401,8 @@ alter table public.re_calls enable row level security;
 alter table public.re_deals enable row level security;
 alter table public.re_activity enable row level security;
 
--- staff: everyone in the team sees the team; only the owner changes roles / activates accounts
+-- staff: everyone in the team sees the team; only admins change roles, permissions and activation.
+-- Log-ins (e-mail + password) are created by the Edge Function «re-staff» (supabase/functions).
 drop policy if exists re_staff_select on public.re_staff;
 create policy re_staff_select on public.re_staff for select to authenticated using ((select public.re_is_staff()) or id = (select auth.uid()));
 drop policy if exists re_staff_insert on public.re_staff;
@@ -375,35 +412,37 @@ create policy re_staff_update on public.re_staff for update to authenticated usi
 drop policy if exists re_staff_delete on public.re_staff;
 create policy re_staff_delete on public.re_staff for delete to authenticated using ((select public.re_is_admin()) and id <> (select auth.uid()));
 
--- settings: public read, owner write
+-- settings: public read ; written by admins and members with the «settings» permission
 drop policy if exists re_settings_read on public.re_settings;
 create policy re_settings_read on public.re_settings for select to anon, authenticated using (true);
 drop policy if exists re_settings_insert on public.re_settings;
-create policy re_settings_insert on public.re_settings for insert to authenticated with check ((select public.re_is_admin()));
+create policy re_settings_insert on public.re_settings for insert to authenticated with check ((select public.re_can('settings')));
 drop policy if exists re_settings_update on public.re_settings;
-create policy re_settings_update on public.re_settings for update to authenticated using ((select public.re_is_admin())) with check ((select public.re_is_admin()));
+create policy re_settings_update on public.re_settings for update to authenticated using ((select public.re_can('settings'))) with check ((select public.re_can('settings')));
 
--- team tables: every active member reads and writes
+-- team tables: every active member reads and writes;
+-- adding / editing properties needs the «properties» permission
 do $$
-declare t text;
+declare t text; w text;
 begin
   foreach t in array array['re_clients', 're_properties', 're_leads', 're_appointments', 're_tasks', 're_calls'] loop
+    w := case when t = 're_properties' then '(select public.re_can(''properties''))' else '(select public.re_is_staff())' end;
     execute format('drop policy if exists %1$s_select on public.%1$s', t);
     execute format('create policy %1$s_select on public.%1$s for select to authenticated using ((select public.re_is_staff()))', t);
     execute format('drop policy if exists %1$s_insert on public.%1$s', t);
-    execute format('create policy %1$s_insert on public.%1$s for insert to authenticated with check ((select public.re_is_staff()))', t);
+    execute format('create policy %1$s_insert on public.%1$s for insert to authenticated with check (%2$s)', t, w);
     execute format('drop policy if exists %1$s_update on public.%1$s', t);
-    execute format('create policy %1$s_update on public.%1$s for update to authenticated using ((select public.re_is_staff())) with check ((select public.re_is_staff()))', t);
+    execute format('create policy %1$s_update on public.%1$s for update to authenticated using (%2$s) with check (%2$s)', t, w);
   end loop;
 end $$;
 
--- deleting clients, properties and leads: owner only ; appointments, tasks, calls: any member
+-- deleting clients, properties and leads: the «delete» permission ; appointments, tasks, calls: any member
 do $$
 declare t text;
 begin
   foreach t in array array['re_clients', 're_properties', 're_leads'] loop
     execute format('drop policy if exists %1$s_delete on public.%1$s', t);
-    execute format('create policy %1$s_delete on public.%1$s for delete to authenticated using ((select public.re_is_admin()))', t);
+    execute format('create policy %1$s_delete on public.%1$s for delete to authenticated using ((select public.re_can(''delete'')))', t);
   end loop;
   foreach t in array array['re_appointments', 're_tasks', 're_calls'] loop
     execute format('drop policy if exists %1$s_delete on public.%1$s', t);
@@ -416,29 +455,29 @@ drop policy if exists re_leads_public_insert on public.re_leads;
 create policy re_leads_public_insert on public.re_leads for insert to anon, authenticated
   with check (status = 'new' and source = 'website' and assigned_to is null and client_id is null and notes is null);
 
--- deals & commissions: owner only
+-- deals & commissions: admins and members with the «deals» permission
 drop policy if exists re_deals_admin on public.re_deals;
-create policy re_deals_admin on public.re_deals for all to authenticated using ((select public.re_is_admin())) with check ((select public.re_is_admin()));
+create policy re_deals_admin on public.re_deals for all to authenticated using ((select public.re_can('deals'))) with check ((select public.re_can('deals')));
 
--- activity log: members write their own entries, only the owner reads the log
+-- activity log: members write their own entries ; admins and the «activity» permission read the log
 drop policy if exists re_activity_insert on public.re_activity;
 create policy re_activity_insert on public.re_activity for insert to authenticated with check ((select public.re_is_staff()) and actor = (select auth.uid()));
 drop policy if exists re_activity_select on public.re_activity;
-create policy re_activity_select on public.re_activity for select to authenticated using ((select public.re_is_admin()));
+create policy re_activity_select on public.re_activity for select to authenticated using ((select public.re_can('activity')));
 
 -- ---------------------------------------------------------------------
--- Photos: public bucket, only team members upload / delete
+-- Photos: public bucket ; members with the «properties» permission upload / delete
 -- ---------------------------------------------------------------------
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('property-images', 'property-images', true, 10485760, array['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 on conflict (id) do update set public = true, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists re_images_insert on storage.objects;
-create policy re_images_insert on storage.objects for insert to authenticated with check (bucket_id = 'property-images' and (select public.re_is_staff()));
+create policy re_images_insert on storage.objects for insert to authenticated with check (bucket_id = 'property-images' and (select public.re_can('properties')));
 drop policy if exists re_images_update on storage.objects;
-create policy re_images_update on storage.objects for update to authenticated using (bucket_id = 'property-images' and (select public.re_is_staff()));
+create policy re_images_update on storage.objects for update to authenticated using (bucket_id = 'property-images' and (select public.re_can('properties')));
 drop policy if exists re_images_delete on storage.objects;
-create policy re_images_delete on storage.objects for delete to authenticated using (bucket_id = 'property-images' and (select public.re_is_staff()));
+create policy re_images_delete on storage.objects for delete to authenticated using (bucket_id = 'property-images' and (select public.re_can('properties')));
 
 -- ---------------------------------------------------------------------
 -- Existing accounts need nothing more: on their first sign-in to /admin the app calls re_join().

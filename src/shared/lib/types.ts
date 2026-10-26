@@ -165,6 +165,8 @@ export interface CallLog {
 }
 
 export type Role = 'admin' | 'secretary'
+/** Extra rights of a member (the admin role has them all). Same list as the database check. */
+export type Permission = 'properties' | 'delete' | 'deals' | 'reports' | 'export' | 'settings' | 'activity'
 export interface Staff {
   id: string
   full_name: string
@@ -173,6 +175,9 @@ export interface Staff {
   phone: string | null
   active: boolean
   created_at: string
+  /** job title shown in the team, e.g. «كاتبة» */
+  title?: string | null
+  permissions?: Permission[] | null
 }
 
 export interface Activity {
@@ -258,4 +263,6 @@ export interface SessionUser {
   name: string
   role: Role
   active: boolean
+  title?: string | null
+  permissions: Permission[]
 }

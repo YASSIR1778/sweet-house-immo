@@ -7,7 +7,7 @@ import type { Appointment, CallLog, Client, ClientKind, Lead, Property } from '@
 import { Button, Drawer, Segmented, cn } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useQuickAdd } from '../dialogs'
-import { useDeleteRow, useIsAdmin, useLookups, useNames } from '../hooks'
+import { useCan, useDeleteRow, useLookups, useNames } from '../hooks'
 import { APPT_KIND, APPT_STATUS, CLIENT_KIND, LEAD_STATUS, PURPOSE, SOURCE } from '../labels'
 import { matchesMessage, propertyMessage } from '../templates'
 import { Avatar, Card, MiniEmpty, PageHeader, PhoneLinks, Pill, SearchBox } from '../ui'
@@ -25,7 +25,7 @@ function useMatches(properties: Property[]) {
 
 export function Clients() {
   const quick = useQuickAdd()
-  const isAdmin = useIsAdmin()
+  const can = useCan()
   const [sp, setSp] = useSearchParams()
   const { data: clients = [], isLoading } = useTable<Client>('clients')
   const { data: properties = [] } = useTable<Property>('properties')
@@ -86,7 +86,7 @@ export function Clients() {
         icon={<Users className="size-6" />}
         actions={
           <>
-            {isAdmin && (
+            {can('export') && (
               <Button variant="outline" onClick={exportCsv} icon={<Download className="size-4" />}>
                 تصدير Excel
               </Button>
@@ -170,7 +170,7 @@ export function Clients() {
 
 function ClientDrawer({ client: c, onClose, matches }: { client: Client; onClose: () => void; matches: { p: Property; score: number }[] }) {
   const quick = useQuickAdd()
-  const isAdmin = useIsAdmin()
+  const can = useCan()
   const L = useLookups()
   const { s, hoodName, typeName } = useNames()
   const del = useDeleteRow('clients', 'client')
@@ -202,7 +202,7 @@ function ClientDrawer({ client: c, onClose, matches }: { client: Client; onClose
       }
       footer={
         <>
-          {isAdmin && (
+          {can('delete') && (
             <Button
               variant="ghost"
               className="me-auto text-danger"

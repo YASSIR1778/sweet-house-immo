@@ -7,11 +7,12 @@ import { download, fmtDate, fmtNumber, toCsv } from '@/shared/lib/format'
 import type { Deal } from '@/shared/lib/types'
 import { Button, Select } from '@/shared/ui/base'
 import { useQuickAdd } from '../dialogs'
-import { useLookups } from '../hooks'
+import { useCan, useLookups } from '../hooks'
 import { PURPOSE } from '../labels'
 import { Card, PageHeader, Pill, Stat } from '../ui'
 
 export function Deals() {
+  const can = useCan()
   const quick = useQuickAdd()
   const L = useLookups()
   const { data: deals = [] } = useTable<Deal>('deals')
@@ -82,9 +83,11 @@ export function Deals() {
                 </option>
               ))}
             </Select>
-            <Button variant="outline" onClick={exportCsv} icon={<Download className="size-4" />}>
-              تصدير
-            </Button>
+            {can('export') && (
+              <Button variant="outline" onClick={exportCsv} icon={<Download className="size-4" />}>
+                تصدير
+              </Button>
+            )}
             <Button variant="gold" onClick={() => quick('deal')} icon={<Plus className="size-4" />}>
               تسجيل صفقة
             </Button>

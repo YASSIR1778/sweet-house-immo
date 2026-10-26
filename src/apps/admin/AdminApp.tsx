@@ -18,6 +18,7 @@ import {
   UserCog,
   Users,
   X,
+  KeyRound,
   CalendarPlus,
   UserPlus,
   ClipboardPlus,
@@ -33,12 +34,13 @@ import { useAuth } from '@/shared/lib/auth'
 import { useTable } from '@/shared/lib/data'
 import { phoneKey, sameDay } from '@/shared/lib/format'
 import { I18nProvider } from '@/shared/lib/i18n'
-import type { Appointment, Client, Lead, Property, Task } from '@/shared/lib/types'
+import type { Appointment, Client, Lead, Permission, Property, Task } from '@/shared/lib/types'
 import { Badge, FullSpinner, cn } from '@/shared/ui/base'
 import { Logo } from '@/shared/ui/logo'
 import { Login, Pending, ResetPassword } from './auth-screens'
+import { ChangePasswordDialog } from './change-password'
 import { QuickAddProvider, useQuickAdd } from './dialogs'
-import { useIsAdmin, useMe, useNames } from './hooks'
+import { useCan, useMe, useNames } from './hooks'
 import { CLIENT_KIND, LEAD_STATUS, ROLE } from './labels'
 import { Avatar, DropMenu, Pill } from './ui'
 
@@ -146,12 +148,15 @@ function SideNav({ groups, onNavigate }: { groups: { title?: string; items: NavI
 function Shell() {
   const me = useMe()
   const isAdmin = me.role === 'admin'
+  const can = useCan()
+  const reports = can('reports')
   const { signOut, mode } = useAuth()
   const loc = useLocation()
   const nav = useNavigate()
   const quick = useQuickAdd()
   const [mobile, setMobile] = useState(false)
   const [palette, setPalette] = useState(false)
+  const [pwOpen, setPwOpen] = useState(false)
   const { data: leads = [], isSuccess: leadsLoaded } = useTable<Lead>('leads', { refetchInterval: 60_000 })
   const { data: tasks = [] } = useTable<Task>('tasks')
   const { data: appts = [] } = useTable<Appointment>('appointments')
@@ -183,11 +188,11 @@ function Shell() {
   }, [])
   useEffect(() => setMobile(false), [loc.pathname])
 
-  const groups: { title?: string; items: NavItem[] }[] = [
+  const allGroups: { title?: string; items: NavItem[] }[] = [
     {
       items: [
-        ...(isAdmin ? [{ to: '/admin', label: 'لوحة القيادة', icon: LayoutDashboard, end: true }] : []),
-        { to: isAdmin ? '/admin/desk' : '/admin', label: isAdmin ? 'المكتب اليومي' : 'مكتبي', icon: Headset, end: !isAdmin, badge: todayAppts, tone: 'teal' },
+        ...(reports ? [{ to: '/admin', label: 'لوحة القيادة', icon: LayoutDashboard, end: true }] : []),
+        { to: reports ? '/admin/desk' : '/admin', label: reports ? 'المكتب اليومي' : 'مكتبي', icon: Headset, end: !reports, badge: todayAppts, tone: 'teal' },
         { to: '/admin/leads', label: 'الطلبات', icon: Inbox, badge: newLeads, tone: 'gold' },
         { to: '/admin/agenda', label: 'المواعيد', icon: CalendarDays },
         { to: '/admin/tasks', label: 'المهام', icon: ListTodo, badge: myOverdue, tone: 'danger' },
@@ -201,29 +206,26 @@ function Shell() {
         { to: '/admin/clients', label: 'العملاء', icon: Users },
       ],
     },
-    ...(isAdmin
-      ? [
-          {
-            title: 'الإدارة',
-            items: [
-              { to: '/admin/deals', label: 'الصفقات والعمولات', icon: HandCoins },
-              { to: '/admin/team', label: 'الفريق', icon: UserCog },
-              { to: '/admin/activity', label: 'سجل النشاط', icon: History },
-              { to: '/admin/settings', label: 'الإعدادات', icon: SettingsIcon },
-            ],
-          },
-        ]
-      : []),
+    {
+      title: 'الإدارة',
+      items: [
+        ...(can('deals') ? [{ to: '/admin/deals', label: 'الصفقات والعمولات', icon: HandCoins }] : []),
+        ...(isAdmin ? [{ to: '/admin/team', label: 'الفريق', icon: UserCog }] : []),
+        ...(can('activity') ? [{ to: '/admin/activity', label: 'سجل النشاط', icon: History }] : []),
+        ...(can('settings') ? [{ to: '/admin/settings', label: 'الإعدادات', icon: SettingsIcon }] : []),
+      ],
+    },
   ]
+  const groups = allGroups.filter((g) => g.items.length > 0)
 
   const quickItems = [
-    { label: 'عقار جديد', icon: <Building className="size-4" />, onClick: () => nav('/admin/properties/new') },
+    { label: 'عقار جديد', icon: <Building className="size-4" />, onClick: () => nav('/admin/properties/new'), hidden: !can('properties') },
     { label: 'طلب جديد', icon: <Inbox className="size-4" />, onClick: () => quick('lead') },
     { label: 'موعد / زيارة', icon: <CalendarPlus className="size-4" />, onClick: () => quick('appointment') },
     { label: 'تسجيل مكالمة', icon: <PhoneIncoming className="size-4" />, onClick: () => quick('call') },
     { label: 'عميل جديد', icon: <UserPlus className="size-4" />, onClick: () => quick('client') },
     { label: 'مهمة', icon: <ClipboardPlus className="size-4" />, onClick: () => quick('task') },
-    { label: 'تسجيل صفقة', icon: <BadgeDollarSign className="size-4" />, onClick: () => quick('deal'), hidden: !isAdmin },
+    { label: 'تسجيل صفقة', icon: <BadgeDollarSign className="size-4" />, onClick: () => quick('deal'), hidden: !can('deals') },
   ]
 
   const sidebar = (
@@ -244,8 +246,13 @@ function Shell() {
           <Avatar name={me.name} />
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-bold">{me.name}</div>
-            <div className="text-xs text-gold-300">{ROLE[me.role]}</div>
+            <div className="truncate text-xs text-gold-300">{me.title || ROLE[me.role]}</div>
           </div>
+          {mode === 'live' && (
+            <button onClick={() => setPwOpen(true)} className="rounded-full p-2 text-white/60 hover:bg-white/10 hover:text-white" title="تغيير كلمة المرور" aria-label="تغيير كلمة المرور">
+              <KeyRound className="size-4" />
+            </button>
+          )}
           <button onClick={() => void signOut()} className="rounded-full p-2 text-white/60 hover:bg-white/10 hover:text-white" title="تسجيل الخروج" aria-label="تسجيل الخروج">
             <LogOut className="size-4" />
           </button>
@@ -298,37 +305,41 @@ function Shell() {
         <main className="mx-auto w-full max-w-[1400px] min-w-0 flex-1 p-4 md:p-8">
           <Suspense fallback={<FullSpinner />}>
           <Routes>
-            <Route index element={isAdmin ? <Dashboard /> : <Desk />} />
+            <Route index element={reports ? <Dashboard /> : <Desk />} />
             <Route path="desk" element={<Desk />} />
             <Route path="properties" element={<Properties />} />
-            <Route path="properties/new" element={<PropertyEditor />} />
+            <Route path="properties/new" element={<Allowed perm="properties"><PropertyEditor /></Allowed>} />
             <Route path="properties/:id" element={<PropertyEditor />} />
             <Route path="leads" element={<Leads />} />
             <Route path="clients" element={<Clients />} />
             <Route path="agenda" element={<Agenda />} />
             <Route path="tasks" element={<Tasks />} />
             <Route path="calls" element={<Calls />} />
-            <Route path="deals" element={<AdminOnly><Deals /></AdminOnly>} />
-            <Route path="team" element={<AdminOnly><Team /></AdminOnly>} />
-            <Route path="activity" element={<AdminOnly><Activity /></AdminOnly>} />
-            <Route path="settings" element={<AdminOnly><Settings /></AdminOnly>} />
+            <Route path="deals" element={<Allowed perm="deals"><Deals /></Allowed>} />
+            <Route path="team" element={<Allowed><Team /></Allowed>} />
+            <Route path="activity" element={<Allowed perm="activity"><Activity /></Allowed>} />
+            <Route path="settings" element={<Allowed perm="settings"><Settings /></Allowed>} />
             <Route path="*" element={<AdminNotFound />} />
           </Routes>
           </Suspense>
         </main>
       </div>
       {palette && <CommandPalette onClose={() => setPalette(false)} />}
+      <ChangePasswordDialog open={pwOpen} onClose={() => setPwOpen(false)} />
     </div>
   )
 }
 
-function AdminOnly({ children }: { children: ReactNode }) {
-  const isAdmin = useIsAdmin()
-  if (isAdmin) return <>{children}</>
+/** A page for admins (no perm) or for members holding `perm`. */
+function Allowed({ perm, children }: { perm?: Permission; children: ReactNode }) {
+  const me = useMe()
+  const can = useCan()
+  if (perm ? can(perm) : me.role === 'admin') return <>{children}</>
   return (
     <div className="card mx-auto mt-10 max-w-lg p-10 text-center">
       <ShieldAlert className="mx-auto size-10 text-warning" />
-      <h1 className="mt-4 text-xl font-bold text-navy">هذه الصفحة خاصة بالمدير</h1>
+      <h1 className="mt-4 text-xl font-bold text-navy">{perm ? 'ليست لديك صلاحية لهذه الصفحة' : 'هذه الصفحة خاصة بالمدير'}</h1>
+      {perm && <p className="mt-2 text-sm text-muted">يستطيع المدير منحك هذه الصلاحية من صفحة «الفريق».</p>}
       <Link to="/admin" className="mt-4 inline-block font-semibold text-teal">
         العودة إلى مكتبي
       </Link>

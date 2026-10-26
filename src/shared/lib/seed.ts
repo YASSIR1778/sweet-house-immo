@@ -770,8 +770,8 @@ export function seedCalls(): CallLog[] {
 
 export function seedStaff(): Staff[] {
   return [
-    { id: ADMIN, full_name: DEMO_USERS.admin.name, email: 'owner@sweethouse.ma', role: 'admin', phone: '0702873088', active: true, created_at: ago(400) },
-    { id: SEC, full_name: DEMO_USERS.secretary.name, email: 'secretary@sweethouse.ma', role: 'secretary', phone: '0600000001', active: true, created_at: ago(200) },
+    { id: ADMIN, full_name: DEMO_USERS.admin.name, email: 'owner@sweethouse.ma', role: 'admin', phone: '0702873088', active: true, created_at: ago(400), title: null, permissions: [] },
+    { id: SEC, full_name: DEMO_USERS.secretary.name, email: 'secretary@sweethouse.ma', role: 'secretary', phone: '0600000001', active: true, created_at: ago(200), title: 'كاتبة', permissions: ['properties'] },
   ]
 }
 

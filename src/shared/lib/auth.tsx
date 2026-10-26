@@ -49,6 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       name: staff?.full_name || sessionUser.email || 'مستخدم',
       role: staff?.role ?? 'secretary',
       active: Boolean(staff?.active),
+      title: staff?.title ?? null,
+      permissions: staff?.permissions ?? ['properties'], // same default as the database column
     })
   }, [])
 
@@ -71,7 +73,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
       void applySession(session?.user ?? null)
     })
-    return () => sub.subscription.unsubscribe()
+    // permissions changed by the owner apply when the member comes back to the tab
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      void sb.auth.getSession().then(({ data }) => (data.session ? applySession(data.session.user) : undefined))
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      sub.subscription.unsubscribe()
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [mode, applySession])
 
   const signIn = useCallback(
@@ -80,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await getSupabase().auth.signInWithPassword({ email: email.trim(), password })
       if (error) return error.message
       await applySession(data.user)
-      void logActivity({ id: data.user.id, email: data.user.email ?? '', name: data.user.email ?? '', role: 'secretary', active: true }, 'login', 'session', null)
+      void logActivity({ id: data.user.id, email: data.user.email ?? '', name: data.user.email ?? '', role: 'secretary', active: true, permissions: [] }, 'login', 'session', null)
       return null
     },
     [mode, applySession],

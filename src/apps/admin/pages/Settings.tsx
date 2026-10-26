@@ -9,7 +9,7 @@ import { logActivity, repo, TABLE, type TableName } from '@/shared/lib/repo'
 import type { AgencySettings, CatalogSettings, Lead, Neighborhood, Property, Settings as SettingsT, SiteSettings, Testimonial } from '@/shared/lib/types'
 import { Button, Field, Input, useConfirm } from '@/shared/ui/base'
 import { LocationPicker } from '@/shared/ui/map'
-import { errorText, useMe } from '../hooks'
+import { errorText, useCan, useMe } from '../hooks'
 import { LEAD_KIND, LEAD_STATUS, PROPERTY_STATUS, SOURCE } from '../labels'
 import { Card, L10nField, PageHeader, Tabs } from '../ui'
 
@@ -362,6 +362,7 @@ function DocsForm({ site }: { site: SiteSettings }) {
 
 /* ------------------------------------------------------------------ */
 function DataTab() {
+  const can = useCan()
   const qc = useQueryClient()
   const confirm = useConfirm()
   const { data: settings } = useSettings()
@@ -411,6 +412,7 @@ function DataTab() {
           </p>
         )}
       </Card>
+      {can('export') && (
       <Card title="النسخ الاحتياطي والتصدير">
         <div className="grid gap-2">
           <Button variant="primary" loading={busy} onClick={() => void backup()} icon={<Download className="size-4" />}>
@@ -445,6 +447,7 @@ function DataTab() {
           <p className="mt-1 text-xs text-muted">احتفظ بنسخة احتياطية كل أسبوع في مكان آمن (Google Drive مثلاً).</p>
         </div>
       </Card>
+      )}
     </div>
   )
 }

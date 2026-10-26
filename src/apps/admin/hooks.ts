@@ -5,8 +5,9 @@ import { useRemove, useSettings, useTable, useUpsert } from '@/shared/lib/data'
 import { phoneKey, pick } from '@/shared/lib/format'
 import { translate } from '@/shared/lib/i18n'
 import { logActivity, type Row, type TableName } from '@/shared/lib/repo'
-import type { Client, Property, PropertyType, SessionUser, Settings, Staff } from '@/shared/lib/types'
+import type { Client, Permission, Property, PropertyType, SessionUser, Settings, Staff } from '@/shared/lib/types'
 import { useConfirm } from '@/shared/ui/base'
+import { can } from './permissions'
 
 export function errorText(e: unknown): string {
   const msg = e instanceof Error ? e.message : e && typeof e === 'object' && 'message' in e ? String((e as { message: unknown }).message) : String(e)
@@ -26,6 +27,12 @@ export function useMe(): SessionUser {
 export function useIsAdmin(): boolean {
   const { user } = useAuth()
   return user?.role === 'admin'
+}
+
+/** can('deals'), can('delete')… for the signed-in member (admins can do everything). */
+export function useCan(): (p: Permission) => boolean {
+  const { user } = useAuth()
+  return useCallback((p: Permission) => can(user, p), [user])
 }
 
 /** Names for neighbourhoods and property types (Arabic, for the team). */

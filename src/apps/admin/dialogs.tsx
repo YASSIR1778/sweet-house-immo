@@ -7,7 +7,7 @@ import { addDays, combineDateTime, fmtNumber, fmtPrice, localDate, localTime, no
 import type { Appointment, AppointmentKind, AppointmentStatus, CallLog, Client, ClientKind, Deal, Lang, Lead, LeadKind, LeadSource, Property, PropertyType, Purpose, Task, TaskPriority } from '@/shared/lib/types'
 import { Button, Field, Input, Modal, Segmented, Select, Switch, Textarea } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
-import { useDeleteRow, useIsAdmin, useLookups, useMe, useNames, useSave } from './hooks'
+import { useCan, useDeleteRow, useLookups, useMe, useNames, useSave } from './hooks'
 import { APPT_KIND, APPT_STATUS, CLIENT_KIND, LANG_LABEL, LEAD_KIND, PRIORITY, PURPOSE, SOURCE } from './labels'
 import { printVisitVoucher } from './print'
 import { visitReminder } from './templates'
@@ -815,7 +815,7 @@ export function TaskDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
 /* ------------------------------------------------------------------ */
 export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Partial<Deal>; onClose: () => void; onSaved?: (d: Deal) => void }) {
   const me = useMe()
-  const isAdmin = useIsAdmin()
+  const can = useCan()
   const L = useLookups()
   const propertyOptions = usePropertyOptions()
   const clientOptions = useClientOptions()
@@ -849,7 +849,7 @@ export function DealDialog({ initial = {}, onClose, onSaved }: { initial?: Parti
     if (Number.isFinite(n)) set('commission', Math.round((f.amount * n) / 100))
   }
 
-  if (!isAdmin) return null
+  if (!can('deals')) return null
 
   const submit = async () => {
     if (!f.amount || f.amount <= 0) return toast.error('أدخل مبلغ الصفقة')

@@ -12,7 +12,7 @@ import { Button, Field, FullSpinner, Input, Segmented, Select, Switch, Textarea,
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { LocationPicker } from '@/shared/ui/map'
 import { useClientOptions } from '../dialogs'
-import { errorText, nextRef, useDeleteRow, useIsAdmin, useMe, useNames, useSave } from '../hooks'
+import { errorText, nextRef, useCan, useDeleteRow, useMe, useNames, useSave } from '../hooks'
 import { PROPERTY_STATUS } from '../labels'
 import { printPropertySheet } from '../print'
 import { propertyMessage } from '../templates'
@@ -195,7 +195,8 @@ export function PropertyEditor() {
   const isNew = !id
   const nav = useNavigate()
   const me = useMe()
-  const isAdmin = useIsAdmin()
+  const can = useCan()
+  const canEdit = can('properties')
   const { data: props = [], isLoading } = useTable<Property>('properties')
   const { s, hoodName, typeName } = useNames()
   const ownerOptions = useClientOptions()
@@ -298,9 +299,13 @@ export function PropertyEditor() {
               <ExternalLink className="size-4" /> عرض في الموقع
             </a>
           )}
-          <Button variant="gold" size="md" loading={pending} onClick={submit} icon={<Save className="size-4" />}>
-            {isNew ? 'حفظ العقار' : 'حفظ التغييرات'}
-          </Button>
+          {canEdit ? (
+            <Button variant="gold" size="md" loading={pending} onClick={submit} icon={<Save className="size-4" />}>
+              {isNew ? 'حفظ العقار' : 'حفظ التغييرات'}
+            </Button>
+          ) : (
+            <span className="inline-flex h-11 items-center rounded-xl bg-sand px-4 text-sm font-semibold text-muted">عرض فقط: التعديل يحتاج صلاحية «العقارات»</span>
+          )}
         </div>
       </div>
 
@@ -517,9 +522,11 @@ export function PropertyEditor() {
                     <dd className="text-navy">{fmtDate(f.updated_at)}</dd>
                   </dl>
                 )}
-                <Button variant="gold" size="lg" className="hidden w-full lg:flex" loading={pending} onClick={submit} icon={<Save className="size-4" />}>
-                  حفظ
-                </Button>
+                {canEdit && (
+                  <Button variant="gold" size="lg" className="w-full max-lg:hidden" loading={pending} onClick={submit} icon={<Save className="size-4" />}>
+                    حفظ
+                  </Button>
+                )}
               </div>
             </Card>
 
@@ -545,7 +552,7 @@ export function PropertyEditor() {
                       إرسال عبر واتساب
                     </Button>
                   )}
-                  {isAdmin && (
+                  {can('delete') && (
                     <Button variant="ghost" className="text-danger" onClick={() => void remove()} icon={<Trash2 className="size-4" />}>
                       حذف العقار
                     </Button>
@@ -561,7 +568,7 @@ export function PropertyEditor() {
         <Button variant="ghost" className="flex-1" onClick={() => nav('/admin/properties')}>
           رجوع
         </Button>
-        <Button variant="gold" className="flex-[2]" loading={pending} onClick={submit} icon={<Save className="size-4" />}>
+        <Button variant="gold" className="flex-[2]" loading={pending} onClick={submit} disabled={!canEdit} icon={<Save className="size-4" />}>
           حفظ
         </Button>
       </div>

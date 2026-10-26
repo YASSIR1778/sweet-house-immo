@@ -144,6 +144,57 @@ await as(OWNER, async () => {
   ok('owner records a deal', (await count(`select count(*) n from re_deals`)) === 1)
 })
 
+// ------------------------------------------------------------ permissions chosen by the owner
+const setPerms = (perms, role = 'secretary') => as(OWNER, () => db.query(`update re_staff set permissions = $1, role = $2 where id = $3`, [perms, role, SEC]))
+await setPerms([])
+await as(SEC, async () => {
+  ok('no «properties»: still reads properties', (await count(`select count(*) n from re_properties`)) === 3)
+  await fails('no «properties»: cannot add a property', () => db.query(`insert into re_properties (ref, title) values ('SH-1100', 'x')`), /row-level security/)
+  const u = await db.query(`update re_properties set price = 1 where id = $1`, [P1])
+  ok('no «properties»: cannot edit a property', u.affectedRows === 0)
+  await fails('no «properties»: cannot upload photos', () => db.query(`insert into storage.objects (bucket_id, name) values ('property-images', 'y.jpg')`), /row-level security/)
+  await db.query(`insert into re_tasks (title) values ('مهمة يومية')`)
+  ok('no «properties»: daily work still allowed', true)
+  await fails('no «delete»: cannot delete a client', async () => {
+    const c = (await one(`insert into re_clients (full_name, phone) values ('ل', '0600000008') returning id`)).id
+    const d = await db.query(`delete from re_clients where id = $1`, [c])
+    if (d.affectedRows === 0) throw new Error('blocked')
+  }, /blocked/)
+})
+await setPerms(['delete', 'deals', 'settings', 'activity'])
+await as(SEC, async () => {
+  const c = (await one(`insert into re_clients (full_name, phone) values ('للحذف', '0600000009') returning id`)).id
+  const d = await db.query(`delete from re_clients where id = $1`, [c])
+  ok('«delete»: deletes a client', d.affectedRows === 1)
+  ok('«deals»: sees the deals', (await count(`select count(*) n from re_deals`)) === 1)
+  await db.query(`insert into re_deals (amount, commission) values (2, 1)`)
+  ok('«deals»: records a deal', (await count(`select count(*) n from re_deals`)) === 2)
+  const st = await db.query(`update re_settings set value = '{"phone":"0700000000"}' where key = 'agency'`)
+  ok('«settings»: edits the settings', st.affectedRows === 1)
+  ok('«activity»: reads the log', (await count(`select count(*) n from re_activity`)) >= 1)
+  const self = await db.query(`update re_staff set permissions = '{properties,delete,deals,reports,export,settings,activity}', role = 'admin' where id = $1`, [SEC])
+  ok('a member cannot change her own permissions', self.affectedRows === 0)
+})
+await fails('an unknown permission is refused', () => as(OWNER, () => db.query(`update re_staff set permissions = '{fly}' where id = $1`, [SEC])), /check constraint/)
+// the owner's account is protected, even from a second admin
+await setPerms(['properties'], 'admin')
+await as(SEC, async () => {
+  await db.query(`update re_staff set role = 'secretary', active = false, email = 'x@y.z' where id = $1`, [OWNER])
+})
+r = await one(`select role, active, email from re_staff where id = $1`, [OWNER])
+ok('owner stays an active admin with the same e-mail', r.role === 'admin' && r.active === true && r.email === OWNER_EMAIL, JSON.stringify(r))
+await as(OWNER, async () => {
+  await db.query(`update re_staff set role = 'secretary', active = false where id = $1`, [OWNER])
+})
+r = await one(`select role, active from re_staff where id = $1`, [OWNER])
+ok('owner cannot lock himself out by mistake', r.role === 'admin' && r.active === true, JSON.stringify(r))
+await setPerms(['properties'])
+r = await one(`select role, permissions from re_staff where id = $1`, [SEC])
+ok('back to a normal secretary', r.role === 'secretary' && r.permissions.join() === 'properties', JSON.stringify(r))
+await db.query(`delete from re_deals where amount = 2`)
+await db.query(`delete from re_tasks where title = 'مهمة يومية'`)
+await db.query(`delete from re_clients where phone = '0600000008'`)
+
 // ------------------------------------------------------------ website visitor (anon)
 const before = await one(`select updated_at from re_properties where id = $1`, [P1])
 await as(null, async () => {

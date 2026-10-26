@@ -7,7 +7,7 @@ import { addDays, fmtDate, fmtNumber, fmtPrice, fmtRelative, fmtTime, sameDay, s
 import type { Activity, Appointment, CallLog, Deal, Lead, Property, PropertyType, Task } from '@/shared/lib/types'
 import { Button } from '@/shared/ui/base'
 import { useQuickAdd } from '../dialogs'
-import { firstName, greeting, useLookups, useMe, useNames } from '../hooks'
+import { firstName, greeting, useCan, useLookups, useMe, useNames } from '../hooks'
 import { ACTION, APPT_KIND, ENTITY, LEAD_KIND, LEAD_STATUS, LEAD_STATUS_ORDER, SOURCE } from '../labels'
 import { Avatar, BarRow, Card, MiniEmpty, PageHeader, Pill, Stat } from '../ui'
 
@@ -20,6 +20,9 @@ function pct(cur: number, prev: number): number | null {
 
 export function Dashboard() {
   const me = useMe()
+  const can = useCan()
+  const deals$ = can('deals')
+  const activity$ = can('activity')
   const quick = useQuickAdd()
   const L = useLookups()
   const { hoodName, typeName } = useNames()
@@ -114,9 +117,11 @@ export function Dashboard() {
         subtitle={fmtDate(now.toISOString(), 'ar', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         actions={
           <>
-            <Button variant="outline" onClick={() => quick('deal')} icon={<HandCoins className="size-4" />}>
-              تسجيل صفقة
-            </Button>
+            {deals$ && (
+              <Button variant="outline" onClick={() => quick('deal')} icon={<HandCoins className="size-4" />}>
+                تسجيل صفقة
+              </Button>
+            )}
             <Button variant="gold" onClick={() => quick('appointment')} icon={<CalendarCheck className="size-4" />}>
               موعد جديد
             </Button>
@@ -128,10 +133,11 @@ export function Dashboard() {
         <Stat label="عقارات منشورة" value={m.live.length} icon={<Building2 className="size-5" />} hint={`${m.live.filter((p) => p.purpose === 'sale').length} للبيع · ${m.live.filter((p) => p.purpose === 'rent').length} للكراء${m.drafts.length ? ` · ${m.drafts.length} غير منشور` : ''}`} to="/admin/properties" />
         <Stat label="طلبات آخر 7 أيام" value={m.leads7} icon={<Inbox className="size-5" />} accent="#a8832f" trend={pct(m.leads7, m.leadsPrev7) != null ? { value: pct(m.leads7, m.leadsPrev7)! } : null} hint={m.waiting.length ? `${m.waiting.length} تنتظر الرد` : 'كل الطلبات تمت معالجتها'} to="/admin/leads" />
         <Stat label="زيارات هذا الأسبوع" value={m.weekVisits.length} icon={<CalendarCheck className="size-5" />} accent="#0f766e" hint={`${m.weekVisits.filter((a) => a.status === 'done').length} تمت · ${m.todayAppts.length} موعد اليوم`} to="/admin/agenda" />
-        <Stat label="عمولات هذا الشهر" value={<span>{fmtNumber(m.monthComm)}</span>} icon={<HandCoins className="size-5" />} accent="#7c3aed" trend={pct(m.monthComm, m.prevMonthComm) != null ? { value: pct(m.monthComm, m.prevMonthComm)! } : null} hint={`${fmtNumber(m.yearComm)} د.م. منذ بداية السنة`} to="/admin/deals" />
+        {deals$ && <Stat label="عمولات هذا الشهر" value={<span>{fmtNumber(m.monthComm)}</span>} icon={<HandCoins className="size-5" />} accent="#7c3aed" trend={pct(m.monthComm, m.prevMonthComm) != null ? { value: pct(m.monthComm, m.prevMonthComm)! } : null} hint={`${fmtNumber(m.yearComm)} د.م. منذ بداية السنة`} to="/admin/deals" />}
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+        {deals$ && (
         <Card title="العمولات — آخر 12 شهراً" icon={<HandCoins className="size-4" />} className="xl:col-span-2" action={<Link to="/admin/deals" className="text-xs font-semibold text-teal hover:underline">التفاصيل</Link>}>
           <div dir="ltr" className="h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -161,8 +167,9 @@ export function Dashboard() {
             </span>
           </div>
         </Card>
+        )}
 
-        <Card title="مسار الطلبات" icon={<Sparkles className="size-4" />} action={m.conversion != null ? <Pill color="#15803d">نسبة النجاح {m.conversion}%</Pill> : undefined}>
+        <Card title="مسار الطلبات" icon={<Sparkles className="size-4" />} className={deals$ ? undefined : 'xl:col-span-3'} action={m.conversion != null ? <Pill color="#15803d">نسبة النجاح {m.conversion}%</Pill> : undefined}>
           <div className="space-y-3.5">
             {m.funnel.map(({ st, n }) => (
               <BarRow key={st} label={LEAD_STATUS[st].label} value={n} max={maxFunnel} color={LEAD_STATUS[st].color} />
@@ -238,7 +245,7 @@ export function Dashboard() {
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <Card title="أداء الفريق — آخر 30 يوماً" icon={<ListTodo className="size-4" />} className="xl:col-span-2" bodyClass="p-0 overflow-x-auto">
+        <Card title="أداء الفريق — آخر 30 يوماً" icon={<ListTodo className="size-4" />} className={activity$ ? 'xl:col-span-2' : 'xl:col-span-3'} bodyClass="p-0 overflow-x-auto">
           <table className="table">
             <thead>
               <tr>
@@ -272,6 +279,7 @@ export function Dashboard() {
           </table>
         </Card>
 
+        {activity$ && (
         <Card title="آخر النشاطات" icon={<PhoneCall className="size-4" />} action={<Link to="/admin/activity" className="text-xs font-semibold text-teal hover:underline">السجل الكامل</Link>} bodyClass="p-0">
           {activity.length === 0 ? (
             <MiniEmpty text="لا يوجد نشاط بعد." />
@@ -294,6 +302,7 @@ export function Dashboard() {
             </ul>
           )}
         </Card>
+        )}
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">

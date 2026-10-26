@@ -6,12 +6,12 @@ import { addDays, download, fmtDateTime, phoneKey, sameDay, startOfDay, toCsv } 
 import type { CallLog } from '@/shared/lib/types'
 import { Button, Segmented } from '@/shared/ui/base'
 import { useQuickAdd } from '../dialogs'
-import { useIsAdmin, useLookups } from '../hooks'
+import { useCan, useLookups } from '../hooks'
 import { PageHeader, PhoneLinks, SearchBox, Stat } from '../ui'
 
 export function Calls() {
   const quick = useQuickAdd()
-  const isAdmin = useIsAdmin()
+  const can = useCan()
   const L = useLookups()
   const { data: calls = [] } = useTable<CallLog>('calls')
   const [period, setPeriod] = useState<'today' | '7' | '30' | 'all'>('7')
@@ -51,7 +51,7 @@ export function Calls() {
         icon={<PhoneCall className="size-6" />}
         actions={
           <>
-            {isAdmin && (
+            {can('export') && (
               <Button variant="outline" onClick={exportCsv} icon={<Download className="size-4" />}>
                 تصدير
               </Button>

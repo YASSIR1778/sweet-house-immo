@@ -77,7 +77,7 @@ export const PRIORITY: Record<TaskPriority, Lbl> = {
 
 export const ROLE: Record<Role, string> = {
   admin: 'المدير',
-  secretary: 'الكاتبة',
+  secretary: 'موظف',
 }
 
 export const ENTITY: Record<string, string> = {
