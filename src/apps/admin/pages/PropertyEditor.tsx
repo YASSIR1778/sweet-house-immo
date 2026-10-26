@@ -1,10 +1,10 @@
-import { ArrowRight, ChevronLeft, ChevronRight, ExternalLink, ImagePlus, Link2, Loader2, Lock, MapPin, Printer, Save, Star, Trash2, Upload, Video, X } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight, ExternalLink, ImagePlus, Link2, Loader2, Lock, MapPin, Megaphone, Printer, Save, Star, Trash2, Upload, Video, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 import { FEATURES, PROPERTY_TYPES } from '@/shared/lib/config'
 import { useTable } from '@/shared/lib/data'
-import { fmtDate, fmtNumber, nowIso, uid, youtubeId } from '@/shared/lib/format'
+import { fmtDate, fmtNumber, nowIso, pick, uid, youtubeId } from '@/shared/lib/format'
 import { resizeImage } from '@/shared/lib/images'
 import { repo } from '@/shared/lib/repo'
 import { currentMandate, mandateState } from '@/shared/lib/owners'
@@ -14,6 +14,7 @@ import { WhatsAppIcon } from '@/shared/ui/icons'
 import { LocationPicker } from '@/shared/ui/map'
 import { useClientOptions } from '../dialogs'
 import { useBrokerOptions } from '../network-dialogs'
+import { ShareKitDialog } from '../marketing'
 import { OffersCard } from '../offers'
 import { DocumentsPanel, MandateDialog, MandatePill, PriceHistory, renewalOf } from '../owners'
 import { errorText, nextRef, useCan, useDeleteRow, useLookups, useMe, useNames, useSave } from '../hooks'
@@ -68,8 +69,17 @@ function blank(ref: string, me: string): Property {
 }
 
 /* ------------------------------------------------------------------ */
-function ImageManager({ images, onChange }: { images: string[]; onChange: (imgs: string[]) => void }) {
+const WATERMARK_KEY = 'shi:watermark'
+
+function ImageManager({ images, onChange, mark }: { images: string[]; onChange: (imgs: string[]) => void; mark: string }) {
   const [busy, setBusy] = useState(0)
+  const [watermark, setWatermark] = useState(() => {
+    try {
+      return localStorage.getItem(WATERMARK_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
   const [url, setUrl] = useState('')
   const [drag, setDrag] = useState<number | null>(null)
   const [over, setOver] = useState(false)
@@ -86,7 +96,7 @@ function ImageManager({ images, onChange }: { images: string[]; onChange: (imgs:
     const demo = repo.mode === 'demo'
     for (const file of arr) {
       try {
-        const blob = await resizeImage(file, demo ? 1200 : 1800, demo ? 0.72 : 0.84)
+        const blob = await resizeImage(file, demo ? 1200 : 1800, demo ? 0.72 : 0.84, watermark ? mark : undefined)
         const u = await repo.uploadImage(blob, file.name.replace(/\.\w+$/, '') + '.jpg')
         latest.current = [...latest.current, u]
         onChange(latest.current)
@@ -183,6 +193,20 @@ function ImageManager({ images, onChange }: { images: string[]; onChange: (imgs:
           }}
         />
       </div>
+      <div className="mt-3">
+        <Switch
+          checked={watermark}
+          onChange={(v) => {
+            setWatermark(v)
+            try {
+              localStorage.setItem(WATERMARK_KEY, v ? '1' : '0')
+            } catch {
+              /* ignore */
+            }
+          }}
+          label={`كتابة «${mark}» على الصور الجديدة (يحميها من النسخ)`}
+        />
+      </div>
       <div className="mt-3 flex gap-2">
         <Input value={url} onChange={(e) => setUrl(e.target.value)} dir="ltr" placeholder="أو الصق رابط صورة https://…" className="text-sm" onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addUrl())} />
         <Button type="button" variant="outline" onClick={addUrl} icon={<Link2 className="size-4" />}>
@@ -207,6 +231,7 @@ export function PropertyEditor() {
   const brokerOptions = useBrokerOptions()
   const { data: mandates = [] } = useTable<Mandate>('mandates')
   const [mandateOpen, setMandateOpen] = useState<Partial<Mandate> | null>(null)
+  const [shareKit, setShareKit] = useState(false)
   const ownerOf = useLookups().client
   const existing = id ? props.find((p) => p.id === id) : undefined
   const [f, setF] = useState<Property | null>(null)
@@ -398,7 +423,7 @@ export function PropertyEditor() {
           </Card>
 
           <Card title={`الصور (${f.images.length})`} icon={<ImagePlus className="size-4" />}>
-            <ImageManager images={f.images} onChange={(imgs) => set('images', imgs)} />
+            <ImageManager images={f.images} onChange={(imgs) => set('images', imgs)} mark={pick(s.agency.name, 'fr') || 'Sweet House'} />
           </Card>
 
           <Card title="الوصف">
@@ -602,6 +627,9 @@ export function PropertyEditor() {
             {!isNew && (
               <Card title="أدوات">
                 <div className="grid gap-2">
+                  <Button variant="gold" onClick={() => setShareKit(true)} icon={<Megaphone className="size-4" />}>
+                    التسويق: صورة ونص للنشر
+                  </Button>
                   <Button variant="outline" onClick={() => void printPropertySheet(f, s, hoodName)} icon={<Printer className="size-4" />}>
                     طباعة بطاقة الواجهة (QR)
                   </Button>
@@ -623,6 +651,7 @@ export function PropertyEditor() {
       </div>
 
       {mandateOpen && <MandateDialog key={mandateOpen.id ?? 'new'} property={f} initial={mandateOpen} onClose={() => setMandateOpen(null)} />}
+      {shareKit && <ShareKitDialog p={f} onClose={() => setShareKit(false)} />}
 
       <div className="fixed inset-x-0 bottom-0 z-40 flex gap-2 border-t border-line bg-white/95 p-3 backdrop-blur lg:hidden">
         <Button variant="ghost" className="flex-1" onClick={() => nav('/admin/properties')}>

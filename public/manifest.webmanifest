@@ -1,8 +1,9 @@
 {
   "name": "Sweet House Immobilier — سويت هاوس للعقار",
-  "short_name": "Sweet House Immo",
-  "id": "/sweet-house-immo/admin/",
-  "start_url": "/sweet-house-immo/admin/",
+  "short_name": "Sweet House",
+  "description": "شقق، فيلات، منازل وأراضٍ للبيع والكراء في تطوان، مرتيل، كابو نيغرو والمضيق.",
+  "id": "/sweet-house-immo/",
+  "start_url": "/sweet-house-immo/",
   "scope": "/sweet-house-immo/",
   "display": "standalone",
   "dir": "rtl",
@@ -13,5 +14,10 @@
     { "src": "/sweet-house-immo/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/sweet-house-immo/icon-512.png", "sizes": "512x512", "type": "image/png" },
     { "src": "/sweet-house-immo/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "للبيع", "url": "/sweet-house-immo/biens?purpose=sale", "icons": [{ "src": "/sweet-house-immo/icon-192.png", "sizes": "192x192" }] },
+    { "name": "للكراء", "url": "/sweet-house-immo/biens?purpose=rent", "icons": [{ "src": "/sweet-house-immo/icon-192.png", "sizes": "192x192" }] },
+    { "name": "قدّروا ثمن عقاركم", "url": "/sweet-house-immo/estimation", "icons": [{ "src": "/sweet-house-immo/icon-192.png", "sizes": "192x192" }] }
   ]
 }

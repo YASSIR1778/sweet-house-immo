@@ -608,6 +608,8 @@ export interface AgencySettings {
   facebook: string
   instagram: string
   tiktok: string
+  /** link where clients leave a review (Google Business profile…) */
+  review_url?: string
   lat: number
   lng: number
 }

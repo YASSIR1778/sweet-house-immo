@@ -98,7 +98,14 @@ function AdminRoot() {
       document.head.appendChild(robots)
     }
     robots.content = 'noindex, nofollow'
-    return () => robots?.remove()
+    // installed from here, the phone app opens the dashboard (the website installs as its own app)
+    const manifest = document.head.querySelector<HTMLLinkElement>('link[rel="manifest"]')
+    const siteManifest = manifest?.getAttribute('href')
+    manifest?.setAttribute('href', `${import.meta.env.BASE_URL}admin.webmanifest`)
+    return () => {
+      robots?.remove()
+      if (manifest && siteManifest) manifest.setAttribute('href', siteManifest)
+    }
   }, [])
   if (loading) return <FullSpinner />
   return (

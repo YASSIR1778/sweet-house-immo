@@ -1,10 +1,11 @@
-import { ArrowRight, BadgeDollarSign, Ban, CalendarClock, Check, FileText, FolderOpen, Pencil, Plus, Receipt, RotateCcw, Trash2, Wallet, X } from 'lucide-react'
+import { ArrowRight, BadgeDollarSign, Ban, CalendarClock, Check, FileText, FolderOpen, Pencil, Plus, Receipt, RotateCcw, Star, Trash2, Wallet, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 import { checklistProgress, dealCollected, dealResult, invoiceRest, partyDue, STAGE_ORDER } from '@/shared/lib/billing'
 import { useBilling, useTable } from '@/shared/lib/data'
-import { fmtDate, fmtNumber, nowIso, uid } from '@/shared/lib/format'
+import { fmtDate, fmtNumber, nowIso, pick, uid, waLink } from '@/shared/lib/format'
+import { reviewRequest } from '@/shared/lib/social'
 import type { BillingSettings, BillParty, ChecklistItem, Deal, DealStage, Expense, Invoice, Payment, Property } from '@/shared/lib/types'
 import { Button, Field, FullSpinner, Input, cn, useConfirm } from '@/shared/ui/base'
 import { useQuickAdd } from '../dialogs'
@@ -22,7 +23,7 @@ export function DealFile() {
   const quick = useQuickAdd()
   const confirm = useConfirm()
   const L = useLookups()
-  const { hoodName } = useNames()
+  const { s, hoodName } = useNames()
   const { data: billing } = useBilling()
   const b = billing as BillingSettings
   const { data: deals = [], isLoading } = useTable<Deal>('deals')
@@ -151,6 +152,18 @@ export function DealFile() {
             {stage !== 'done' && stage !== 'cancelled' && (
               <Button variant="outline" icon={<CalendarClock className="size-4" />} onClick={() => quick('appointment', { kind: 'signing', property_id: d.property_id, client_id: d.client_id, title: `توقيع ${rent ? 'عقد الكراء' : 'عقد البيع'}${p ? ` — ${p.ref}` : ''}` })}>
                 موعد التوقيع
+              </Button>
+            )}
+            {stage === 'done' && s.agency.review_url && (c || owner) && (
+              <Button
+                variant="outline"
+                icon={<Star className="size-4" />}
+                onClick={() => {
+                  const who = (c ?? owner)!
+                  window.open(waLink(who.whatsapp || who.phone, reviewRequest(who.lang ?? 'ar', who.full_name, pick(s.agency.name, who.lang ?? 'ar'), s.agency.review_url!)), '_blank', 'noopener')
+                }}
+              >
+                طلب تقييم الوكالة
               </Button>
             )}
             <Button variant="outline" icon={<Pencil className="size-4" />} onClick={() => quick('deal', d)}>

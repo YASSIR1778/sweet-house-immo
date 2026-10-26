@@ -19,6 +19,13 @@ if (NOINDEX) {
   writeFileSync(`${DIST}/index.html`, html)
 }
 
+// each deployment gets its own service-worker cache, so old files never linger
+try {
+  writeFileSync(`${DIST}/sw.js`, readFileSync(`${DIST}/sw.js`, 'utf8').replace('__BUILD__', Date.now().toString(36)))
+} catch {
+  /* no service worker in this build */
+}
+
 copyFileSync(`${DIST}/index.html`, `${DIST}/404.html`)
 for (const r of ROUTES) {
   mkdirSync(`${DIST}/${r}`, { recursive: true })

@@ -120,6 +120,9 @@ function AgencyForm({ value }: { value: AgencySettings }) {
               <Field label="تيك توك (رابط الحساب)">
                 <Input dir="ltr" value={f.tiktok} onChange={(e) => set('tiktok', e.target.value)} />
               </Field>
+              <Field label="رابط تقييم الوكالة" hint="رابط «اكتب تقييماً» من حساب Google Business (أو فيسبوك). يُرسل للزبون بعد الصفقة.">
+                <Input dir="ltr" value={f.review_url ?? ''} onChange={(e) => set('review_url', e.target.value.trim())} placeholder="https://g.page/r/…/review" />
+              </Field>
             </div>
           </Card>
           <Card title="العنوان وأوقات العمل">

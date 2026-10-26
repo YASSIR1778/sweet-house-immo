@@ -25,6 +25,13 @@ window.addEventListener('vite:preloadError', (event) => {
   }
 })
 
+// installable phone app; pages and data still come from the network first (public/sw.js)
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => undefined)
+  })
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
