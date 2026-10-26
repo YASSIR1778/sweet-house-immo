@@ -6,6 +6,7 @@ import { fmtDate, fmtDateTime, fmtNumber, fmtPrice, fmtRelative, nowIso } from '
 import type { Lead, LeadKind, LeadSource, LeadStatus } from '@/shared/lib/types'
 import { Button, Drawer, Field, Segmented, Select, Textarea, cn } from '@/shared/ui/base'
 import { StaffSelect, useQuickAdd } from '../dialogs'
+import { BulkBar, CheckAll, CheckCell, bulkBtn, useBulkDelete, useBulkSave, useSelection } from '../bulk'
 import { useCan, useDeleteRow, useLookups, useMe, useNames, useSave } from '../hooks'
 import { LANG_LABEL, LEAD_KIND, LEAD_STATUS, LEAD_STATUS_ORDER, PURPOSE, SOURCE } from '../labels'
 import { leadReply } from '../templates'
@@ -47,6 +48,13 @@ export function Leads() {
       )
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
   }, [leads, q, kind, source, mine, me.id])
+
+  const ids = useMemo(() => filtered.map((l) => l.id), [filtered])
+  const selection = useSelection(ids)
+  const picked = filtered.filter((l) => selection.isSelected(l.id))
+  const bulkSave = useBulkSave<Lead>('leads', 'lead')
+  const bulkDelete = useBulkDelete<Lead>('leads', 'lead', (l) => l.name)
+  const can = useCan()
 
   const move = (l: Lead, status: LeadStatus) => {
     if (l.status === status) return
@@ -179,6 +187,7 @@ export function Leads() {
           <table className="table">
             <thead>
               <tr>
+                <CheckAll checked={selection.all} onChange={selection.toggleAll} />
                 <th>الاسم</th>
                 <th>الطلب</th>
                 <th>العقار</th>
@@ -190,7 +199,8 @@ export function Leads() {
             </thead>
             <tbody>
               {filtered.map((l) => (
-                <tr key={l.id} className="cursor-pointer" onClick={() => setOpen(l.id)}>
+                <tr key={l.id} className={cn('cursor-pointer', selection.isSelected(l.id) && 'bg-gold/5')} onClick={() => setOpen(l.id)}>
+                  <CheckCell checked={selection.isSelected(l.id)} onChange={() => selection.toggle(l.id)} label={l.name} />
                   <td>
                     <div className="font-semibold text-navy">{l.name}</div>
                     <div className="num text-xs text-muted" dir="ltr">
@@ -217,7 +227,7 @@ export function Leads() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-muted">
+                  <td colSpan={8} className="py-10 text-center text-muted">
                     لا توجد طلبات
                   </td>
                 </tr>
@@ -227,6 +237,51 @@ export function Leads() {
         </div>
       )}
 
+      <BulkBar count={view === 'list' ? selection.count : 0} onClear={selection.clear}>
+        <select
+          className="h-9 rounded-xl bg-white/10 px-2 text-xs font-semibold text-white"
+          value=""
+          onChange={async (e) => {
+            const st = e.target.value as LeadStatus
+            if (!st) return
+            await bulkSave(picked.map((l) => ({ ...l, status: st, assigned_to: l.assigned_to ?? me.id, updated_at: nowIso() })), `الحالة: ${LEAD_STATUS[st].label}`)
+            selection.clear()
+          }}
+        >
+          <option value="" className="text-navy">
+            تغيير الحالة…
+          </option>
+          {LEAD_STATUS_ORDER.map((k) => (
+            <option key={k} value={k} className="text-navy">
+              {LEAD_STATUS[k].label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="h-9 rounded-xl bg-white/10 px-2 text-xs font-semibold text-white"
+          value=""
+          onChange={async (e) => {
+            const who = e.target.value
+            if (!who) return
+            await bulkSave(picked.map((l) => ({ ...l, assigned_to: who, updated_at: nowIso() })), `أُسندت إلى ${L.staffName(who)}`)
+            selection.clear()
+          }}
+        >
+          <option value="" className="text-navy">
+            إسناد إلى…
+          </option>
+          {L.activeStaff.map((m) => (
+            <option key={m.id} value={m.id} className="text-navy">
+              {m.full_name}
+            </option>
+          ))}
+        </select>
+        {can('delete') && (
+          <button type="button" className={cn(bulkBtn, 'bg-danger/80 hover:bg-danger')} onClick={async () => (await bulkDelete(picked)) && selection.clear()}>
+            حذف
+          </button>
+        )}
+      </BulkBar>
       {open && <LeadDrawer lead={open} onClose={() => setOpen(null)} />}
     </>
   )

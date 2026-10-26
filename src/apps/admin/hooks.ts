@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
 import { useAuth } from '@/shared/lib/auth'
@@ -5,6 +6,7 @@ import { useRemove, useSettings, useTable, useUpsert } from '@/shared/lib/data'
 import { phoneKey, pick } from '@/shared/lib/format'
 import { translate } from '@/shared/lib/i18n'
 import { logActivity, type Row, type TableName } from '@/shared/lib/repo'
+import { findDeleted, restoreItem } from '@/shared/lib/trash'
 import type { Client, Permission, Property, PropertyType, SessionUser, Settings, Staff } from '@/shared/lib/types'
 import { useConfirm } from '@/shared/ui/base'
 import { can } from './permissions'
@@ -100,27 +102,49 @@ export function useSave<T extends Row>(table: TableName, entity: string, title: 
 }
 
 /** Confirm + delete + audit log. Resolves to true when deleted. */
+/** Put back a record just deleted (it waits 30 days in the trash). */
+export function useUndoDelete() {
+  const qc = useQueryClient()
+  return useCallback(
+    async (table: TableName, id: string, title: string) => {
+      try {
+        const found = await findDeleted(table, id)
+        if (!found) return toast.error('لم أجد هذا السجل في سلة المحذوفات')
+        const touched = await restoreItem(found.item, found.all)
+        for (const t of [...touched, 'trash']) void qc.invalidateQueries({ queryKey: [t] })
+        toast.success(`استُرجع «${title}»`)
+      } catch (e) {
+        toast.error(errorText(e))
+      }
+    },
+    [qc],
+  )
+}
+
 export function useDeleteRow(table: TableName, entity: string) {
   const { mutateAsync } = useRemove(table)
   const { user } = useAuth()
   const confirm = useConfirm()
+  const qc = useQueryClient()
+  const undo = useUndoDelete()
   return useCallback(
-    async (id: string, title: string, opts: { text?: string; skipConfirm?: boolean } = {}) => {
+    async (id: string, title: string, opts: { text?: string; skipConfirm?: boolean; quiet?: boolean } = {}) => {
       if (!opts.skipConfirm) {
-        const ok = await confirm({ title: `حذف «${title}»؟`, text: opts.text ?? 'لا يمكن التراجع عن هذا الإجراء.', confirmLabel: 'نعم، احذف', danger: true })
+        const ok = await confirm({ title: `حذف «${title}»؟`, text: opts.text ?? 'يُنقل إلى سلة المحذوفات، ويمكن استرجاعه خلال 30 يوماً.', confirmLabel: 'نعم، احذف', danger: true })
         if (!ok) return false
       }
       try {
         await mutateAsync(id)
+        void qc.invalidateQueries({ queryKey: ['trash'] })
         void logActivity(user, 'delete', entity, id, { title })
-        toast.success('تم الحذف')
+        if (!opts.quiet) toast.success('تم الحذف', { duration: 8000, action: { label: 'تراجع', onClick: () => void undo(table, id, title) } })
         return true
       } catch (e) {
         toast.error(errorText(e))
         return false
       }
     },
-    [mutateAsync, user, entity, confirm],
+    [mutateAsync, user, entity, confirm, qc, undo, table],
   )
 }
 

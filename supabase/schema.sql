@@ -443,6 +443,40 @@ alter table public.re_clients add column if not exists share_token uuid unique;
 alter table public.re_clients add column if not exists last_report_at timestamptz;
 
 -- ---------------------------------------------------------------------
+-- Trash: every deleted record is kept 30 days and can be restored
+-- ---------------------------------------------------------------------
+create table if not exists public.re_trash (
+  id uuid primary key default gen_random_uuid(),
+  table_name text not null,
+  row_id uuid not null,
+  label text,
+  data jsonb not null,
+  deleted_by uuid,
+  created_at timestamptz not null default now()
+);
+create index if not exists re_trash_created_idx on public.re_trash (created_at desc);
+create index if not exists re_trash_row_idx on public.re_trash (row_id);
+
+create or replace function public.re_to_trash() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  j jsonb := to_jsonb(old);
+begin
+  insert into public.re_trash (table_name, row_id, label, data, deleted_by)
+  values (tg_table_name, old.id, coalesce(j ->> 'ref', j ->> 'full_name', j ->> 'name', j ->> 'title', j ->> 'caller_name', ''), j, auth.uid());
+  return old;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['re_properties', 're_clients', 're_leads', 're_appointments', 're_tasks', 're_calls', 're_deals', 're_brokers', 're_mandates', 're_documents'] loop
+    execute format('drop trigger if exists re_trash_%1$s on public.%1$s', t);
+    execute format('create trigger re_trash_%1$s before delete on public.%1$s for each row execute function public.re_to_trash()', t);
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------
 -- updated_at (a page view does not count as an edit)
 -- ---------------------------------------------------------------------
 create or replace function public.re_touch() returns trigger
@@ -580,6 +614,13 @@ alter table public.re_private enable row level security;
 alter table public.re_mandates enable row level security;
 alter table public.re_documents enable row level security;
 alter table public.re_price_history enable row level security;
+alter table public.re_trash enable row level security;
+
+-- trash: seen, restored and emptied by members with the «delete» permission; filled only by the trigger
+drop policy if exists re_trash_select on public.re_trash;
+create policy re_trash_select on public.re_trash for select to authenticated using ((select public.re_can('delete')));
+drop policy if exists re_trash_delete on public.re_trash;
+create policy re_trash_delete on public.re_trash for delete to authenticated using ((select public.re_can('delete')));
 
 -- mandates: every member reads; adding / editing needs «properties»; deleting needs «delete»
 drop policy if exists re_mandates_select on public.re_mandates;

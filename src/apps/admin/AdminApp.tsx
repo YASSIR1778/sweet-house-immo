@@ -27,6 +27,7 @@ import {
   BadgeDollarSign,
   Calculator,
   FolderLock,
+  Trash2,
   Handshake,
   type LucideIcon,
 } from 'lucide-react'
@@ -52,6 +53,7 @@ const Activity = lazy(() => import('./pages/Activity').then((m) => ({ default: m
 const Agenda = lazy(() => import('./pages/Agenda').then((m) => ({ default: m.Agenda })))
 const Brokers = lazy(() => import('./pages/Brokers').then((m) => ({ default: m.Brokers })))
 const Owners = lazy(() => import('./pages/Owners').then((m) => ({ default: m.Owners })))
+const Trash = lazy(() => import('./pages/Trash').then((m) => ({ default: m.Trash })))
 const Calculators = lazy(() => import('./pages/Calculators').then((m) => ({ default: m.Calculators })))
 const Calls = lazy(() => import('./pages/Calls').then((m) => ({ default: m.Calls })))
 const Clients = lazy(() => import('./pages/Clients').then((m) => ({ default: m.Clients })))
@@ -228,6 +230,7 @@ function Shell() {
         ...(isAdmin ? [{ to: '/admin/team', label: 'الفريق', icon: UserCog }] : []),
         ...(can('activity') ? [{ to: '/admin/activity', label: 'سجل النشاط', icon: History }] : []),
         ...(can('settings') ? [{ to: '/admin/settings', label: 'الإعدادات', icon: SettingsIcon }] : []),
+        ...(can('delete') ? [{ to: '/admin/trash', label: 'سلة المحذوفات', icon: Trash2 }] : []),
       ],
     },
   ]
@@ -330,6 +333,7 @@ function Shell() {
             <Route path="clients" element={<Clients />} />
             <Route path="brokers" element={<Brokers />} />
             <Route path="owners" element={<Owners />} />
+            <Route path="trash" element={<Allowed perm="delete"><Trash /></Allowed>} />
             <Route path="calculators" element={<Calculators />} />
             <Route path="agenda" element={<Agenda />} />
             <Route path="tasks" element={<Tasks />} />

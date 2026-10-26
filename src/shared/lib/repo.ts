@@ -5,7 +5,7 @@ import { DEFAULT_FEES } from './fee-defaults'
 import { buildOwnerReport } from './owners'
 import type { Activity, Appointment, Client, FeeSettings, Lead, Mandate, OwnerReport, PriceChange, Property, SessionUser, Settings } from './types'
 
-export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers' | 'mandates' | 'documents' | 'price_history'
+export type TableName = 'properties' | 'clients' | 'leads' | 'appointments' | 'tasks' | 'deals' | 'calls' | 'staff' | 'activity' | 'brokers' | 'mandates' | 'documents' | 'price_history' | 'trash'
 
 export const TABLE: Record<TableName, string> = {
   properties: 're_properties',
@@ -21,7 +21,11 @@ export const TABLE: Record<TableName, string> = {
   mandates: 're_mandates',
   documents: 're_documents',
   price_history: 're_price_history',
+  trash: 're_trash',
 }
+
+/** Demo: deleted rows of these tables are kept in the local trash, like the database trigger does. */
+const LOCAL_TRASH: TableName[] = ['properties', 'clients', 'leads', 'appointments', 'tasks', 'calls', 'deals', 'brokers', 'mandates', 'documents']
 
 export const DOCS_BUCKET = 'property-docs'
 
@@ -162,9 +166,16 @@ class LocalRepo implements Repo {
   }
   async remove(table: TableName, id: string): Promise<void> {
     await this.ready
+    const rows = this.read<Row>(table)
+    const old = rows.find((r) => r.id === id) as (Row & Record<string, unknown>) | undefined
+    if (old && LOCAL_TRASH.includes(table)) {
+      const label = [old.ref, old.full_name, old.name, old.title, old.caller_name].find((v) => typeof v === 'string' && v) as string | undefined
+      const item = { id: uid(), table_name: TABLE[table], row_id: id, label: label ?? '', data: old, deleted_by: null, created_at: nowIso() }
+      this.write('trash', [item, ...this.read('trash')].slice(0, 300))
+    }
     this.write(
       table,
-      this.read<Row>(table).filter((r) => r.id !== id),
+      rows.filter((r) => r.id !== id),
     )
   }
   async log(row: Activity): Promise<void> {

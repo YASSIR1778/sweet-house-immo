@@ -12,7 +12,7 @@ import type { Appointment, Client, DocKind, KeysHolder, Lead, Mandate, MandateKi
 import { Button, Drawer, Field, Input, Modal, Segmented, Select, Switch, Textarea, cn, useConfirm } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useClientOptions, useQuickAdd } from './dialogs'
-import { errorText, useCan, useDeleteRow, useLookups, useMe, useNames, useSave } from './hooks'
+import { errorText, useCan, useDeleteRow, useLookups, useMe, useNames, useSave, useUndoDelete } from './hooks'
 import { DOC_KIND, KEYS, LANG_LABEL, MANDATE_KIND, PROPERTY_STATUS, daysAr } from './labels'
 import { printMandate, printOwnerReport } from './print'
 import { Card, Combo, PhoneLinks, Pill } from './ui'
@@ -291,6 +291,7 @@ export function DocumentsPanel({ clientId = null, propertyId = null, propertyIds
   const qc = useQueryClient()
   const { data: docs = [] } = useTable<PropertyDocument>('documents')
   const { save } = useSave<PropertyDocument>('documents', 'document', (d) => d.title || d.file_name)
+  const undo = useUndoDelete()
   const input = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
@@ -353,13 +354,13 @@ export function DocumentsPanel({ clientId = null, propertyId = null, propertyIds
   }
 
   const remove = async (d: PropertyDocument) => {
-    if (!(await confirm({ title: `حذف «${d.title || d.file_name}»؟`, text: 'يُحذف الملف نهائياً من الخزانة.', confirmLabel: 'نعم، احذف', danger: true }))) return
+    if (!(await confirm({ title: `حذف «${d.title || d.file_name}»؟`, text: 'يُنقل إلى سلة المحذوفات، ويُمحى الملف نهائياً بعد 30 يوماً.', confirmLabel: 'نعم، احذف', danger: true }))) return
     try {
       await repo.remove('documents', d.id)
-      await repo.deleteDocumentFile(d.path)
       void qc.invalidateQueries({ queryKey: ['documents'] })
+      void qc.invalidateQueries({ queryKey: ['trash'] })
       void logActivity(me, 'delete', 'document', d.id, { title: d.title || d.file_name })
-      toast.success('تم الحذف')
+      toast.success('تم الحذف', { duration: 8000, action: { label: 'تراجع', onClick: () => void undo('documents', d.id, d.title || d.file_name) } })
     } catch (e) {
       toast.error(errorText(e))
     }

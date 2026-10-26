@@ -4,11 +4,12 @@ import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { PROPERTY_TYPES, SITE_URL } from '@/shared/lib/config'
 import { useTable } from '@/shared/lib/data'
-import { fmtDate, fmtNumber, fmtPrice, nowIso, uid } from '@/shared/lib/format'
+import { download, fmtDate, fmtNumber, fmtPrice, nowIso, toCsv, uid } from '@/shared/lib/format'
 import { repo } from '@/shared/lib/repo'
 import type { Property, PropertyStatus, Purpose } from '@/shared/lib/types'
 import { ButtonLink, EmptyState, Segmented, Select, Switch, cn } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
+import { BulkBar, CheckAll, CheckCell, bulkBtn, useBulkDelete, useBulkSave, useSelection } from '../bulk'
 import { nextRef, useCan, useDeleteRow, useNames, useSave } from '../hooks'
 import { PROPERTY_STATUS, PURPOSE } from '../labels'
 import { printPropertySheet } from '../print'
@@ -70,6 +71,22 @@ export function Properties() {
   }, [data, tab, q, purpose, type, sort, hoodName])
 
   const count = (t: Tab) => data.filter((p) => inTab(p, t)).length
+  const ids = useMemo(() => list.map((p) => p.id), [list])
+  const selection = useSelection(ids)
+  const picked = list.filter((p) => selection.isSelected(p.id))
+  const bulkSave = useBulkSave<Property>('properties', 'property')
+  const bulkDelete = useBulkDelete<Property>('properties', 'property', (p) => p.ref)
+  const selectable = canEdit || can('delete') || can('export')
+  const bulk = async (rows: Property[], message: string) => {
+    await bulkSave(rows.map((p) => ({ ...p, updated_at: nowIso() })), message)
+    selection.clear()
+  }
+  const exportPicked = () =>
+    download(
+      `properties-${new Date().toISOString().slice(0, 10)}.csv`,
+      toCsv(picked.map((p) => ({ المرجع: p.ref, العنوان: p.title, الغرض: PURPOSE[p.purpose].label, الثمن: p.price, المساحة: p.area, الحي: hoodName(p.neighborhood), الحالة: PROPERTY_STATUS[p.status].label, منشور: p.published ? 'نعم' : 'لا', المشاهدات: p.views }))),
+      'text/csv;charset=utf-8',
+    )
 
   const togglePublish = (p: Property) =>
     save({ ...p, published: !p.published, status: p.status === 'draft' && !p.published ? 'available' : p.status, updated_at: nowIso() }, { action: 'status', meta: { published: !p.published }, message: p.published ? 'أُخفي العقار من الموقع' : 'نُشر العقار على الموقع ✓' })
@@ -179,6 +196,7 @@ export function Properties() {
             <table className="table">
               <thead>
                 <tr>
+                  {selectable && <CheckAll checked={selection.all} onChange={selection.toggleAll} />}
                   <th>العقار</th>
                   <th>النوع</th>
                   <th>الثمن</th>
@@ -192,7 +210,8 @@ export function Properties() {
               </thead>
               <tbody>
                 {list.map((p) => (
-                  <tr key={p.id} className="cursor-pointer" onClick={() => nav(`/admin/properties/${p.id}`)}>
+                  <tr key={p.id} className={cn('cursor-pointer', selection.isSelected(p.id) && 'bg-gold/5')} onClick={() => nav(`/admin/properties/${p.id}`)}>
+                    {selectable && <CheckCell checked={selection.isSelected(p.id)} onChange={() => selection.toggle(p.id)} label={p.ref} />}
                     <td>
                       <div className="flex min-w-[260px] items-center gap-3">
                         <div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-sand">
@@ -277,6 +296,45 @@ export function Properties() {
           </div>
         )}
       </div>
+      <BulkBar count={selection.count} onClear={selection.clear}>
+        {canEdit && (
+          <>
+            <button type="button" className={bulkBtn} onClick={() => void bulk(picked.map((p) => ({ ...p, published: true, status: p.status === 'draft' ? 'available' : p.status })), 'نُشر على الموقع')}>
+              نشر
+            </button>
+            <button type="button" className={bulkBtn} onClick={() => void bulk(picked.map((p) => ({ ...p, published: false })), 'أُخفي من الموقع')}>
+              إخفاء
+            </button>
+            <button type="button" className={bulkBtn} onClick={() => void bulk(picked.map((p) => ({ ...p, featured: !picked.every((x) => x.featured) })), 'تم تغيير التمييز')}>
+              {picked.every((x) => x.featured) ? 'إلغاء التمييز' : 'تمييز'}
+            </button>
+            <select
+              className="h-9 rounded-xl bg-white/10 px-2 text-xs font-semibold text-white"
+              value=""
+              onChange={(e) => e.target.value && void bulk(picked.map((p) => ({ ...p, status: e.target.value as PropertyStatus })), `الحالة: ${PROPERTY_STATUS[e.target.value as PropertyStatus].label}`)}
+            >
+              <option value="" className="text-navy">
+                تغيير الحالة…
+              </option>
+              {(Object.keys(PROPERTY_STATUS) as PropertyStatus[]).map((k) => (
+                <option key={k} value={k} className="text-navy">
+                  {PROPERTY_STATUS[k].label}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+        {can('export') && (
+          <button type="button" className={bulkBtn} onClick={exportPicked}>
+            تصدير
+          </button>
+        )}
+        {can('delete') && (
+          <button type="button" className={cn(bulkBtn, 'bg-danger/80 hover:bg-danger')} onClick={async () => (await bulkDelete(picked)) && selection.clear()}>
+            حذف
+          </button>
+        )}
+      </BulkBar>
     </>
   )
 }

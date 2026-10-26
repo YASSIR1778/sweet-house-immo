@@ -271,6 +271,30 @@ await as(null, async () => {
 await db.query(`delete from re_appointments where title = 'زيارة' and kind = 'visit' and status = 'done' and property_id = $1 and client_id is null`, [P1])
 await db.query(`update re_properties set owner_client_id = null, price = 880000, title = 'شقة' where id = $1`, [P1])
 
+// ------------------------------------------------------------ trash
+await as(OWNER, async () => {
+  const c = (await one(`insert into re_clients (full_name, phone) values ('للسلة', '0600000077') returning id`)).id
+  await db.query(`insert into re_documents (client_id, kind, title, path) values ($1, 'id', 'بطاقة', 'x/card.pdf')`, [c])
+  await db.query(`delete from re_clients where id = $1`, [c])
+  const tr = await db.query(`select table_name, label, data from re_trash where row_id = $1`, [c])
+  ok('deleted client kept in the trash with its data', tr.rows.length === 1 && tr.rows[0].table_name === 're_clients' && tr.rows[0].label === 'للسلة' && tr.rows[0].data.phone === '0600000077')
+  ok('cascaded document kept too', (await count(`select count(*) n from re_trash where table_name = 're_documents' and data ->> 'client_id' = $1`, [c])) === 1)
+  await db.query(`insert into re_clients select * from jsonb_populate_record(null::re_clients, (select data from re_trash where row_id = $1))`, [c])
+  ok('owner restores it with the same id', (await count(`select count(*) n from re_clients where id = $1`, [c])) === 1)
+  const purge = await db.query(`delete from re_trash where row_id = $1`, [c])
+  ok('owner empties trash items', purge.affectedRows === 1)
+  await db.query(`delete from re_documents where client_id = $1`, [c])
+  await db.query(`delete from re_clients where id = $1`, [c])
+})
+await as(SEC, async () => {
+  ok('member without «delete» does not see the trash', (await count(`select count(*) n from re_trash`)) === 0)
+  await fails('nobody writes the trash by hand', () => db.query(`insert into re_trash (table_name, row_id, data) values ('re_clients', gen_random_uuid(), '{}')`), /row-level security/)
+})
+await as(null, async () => {
+  ok('anon: trash hidden', (await count(`select count(*) n from re_trash`)) === 0)
+})
+await db.query(`delete from re_trash`)
+
 // ------------------------------------------------------------ website visitor (anon)
 const before = await one(`select updated_at from re_properties where id = $1`, [P1])
 await as(null, async () => {

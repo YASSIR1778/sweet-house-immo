@@ -7,6 +7,7 @@ import type { Appointment, CallLog, Client, ClientKind, Lead, Property } from '@
 import { Button, ButtonLink, Drawer, Segmented, cn } from '@/shared/ui/base'
 import { WhatsAppIcon } from '@/shared/ui/icons'
 import { useQuickAdd } from '../dialogs'
+import { BulkBar, CheckAll, CheckCell, bulkBtn, useBulkDelete, useSelection } from '../bulk'
 import { useCan, useDeleteRow, useLookups, useNames } from '../hooks'
 import { APPT_KIND, APPT_STATUS, CLIENT_KIND, LEAD_STATUS, PURPOSE, SOURCE } from '../labels'
 import { matchesMessage, propertyMessage } from '../templates'
@@ -78,6 +79,18 @@ export function Clients() {
     return parts.join(' · ') || '—'
   }
 
+  const ids = useMemo(() => list.map((c) => c.id), [list])
+  const selection = useSelection(ids)
+  const picked = list.filter((c) => selection.isSelected(c.id))
+  const bulkDelete = useBulkDelete<Client>('clients', 'client', (c) => c.full_name)
+  const selectable = can('delete') || can('export')
+  const exportPicked = () =>
+    download(
+      `clients-${new Date().toISOString().slice(0, 10)}.csv`,
+      toCsv(picked.map((c) => ({ الاسم: c.full_name, الهاتف: c.phone, البريد: c.email, النوع: CLIENT_KIND[c.kind].label, المصدر: SOURCE[c.source].label, ملاحظات: c.notes }))),
+      'text/csv;charset=utf-8',
+    )
+
   return (
     <>
       <PageHeader
@@ -114,6 +127,7 @@ export function Clients() {
             <table className="table">
               <thead>
                 <tr>
+                  {selectable && <CheckAll checked={selection.all} onChange={selection.toggleAll} />}
                   <th>العميل</th>
                   <th>الهاتف</th>
                   <th>يبحث عن</th>
@@ -127,7 +141,8 @@ export function Clients() {
                 {list.map((c) => {
                   const n = matches(c).length
                   return (
-                    <tr key={c.id} className="cursor-pointer" onClick={() => setOpen(c.id)}>
+                    <tr key={c.id} className={cn('cursor-pointer', selection.isSelected(c.id) && 'bg-gold/5')} onClick={() => setOpen(c.id)}>
+                      {selectable && <CheckCell checked={selection.isSelected(c.id)} onChange={() => selection.toggle(c.id)} label={c.full_name} />}
                       <td>
                         <div className="flex items-center gap-3">
                           <Avatar name={c.full_name} />
@@ -152,7 +167,7 @@ export function Clients() {
                 })}
                 {list.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-10 text-center text-muted">
+                    <td colSpan={8} className="py-10 text-center text-muted">
                       لا يوجد عملاء
                     </td>
                   </tr>
@@ -164,6 +179,18 @@ export function Clients() {
       </div>
 
       {open && <ClientDrawer client={open} onClose={() => setOpen(null)} matches={matches(open)} />}
+      <BulkBar count={selection.count} onClear={selection.clear}>
+        {can('export') && (
+          <button type="button" className={bulkBtn} onClick={exportPicked}>
+            تصدير
+          </button>
+        )}
+        {can('delete') && (
+          <button type="button" className={cn(bulkBtn, 'bg-danger/80 hover:bg-danger')} onClick={async () => (await bulkDelete(picked)) && selection.clear()}>
+            حذف
+          </button>
+        )}
+      </BulkBar>
     </>
   )
 }
