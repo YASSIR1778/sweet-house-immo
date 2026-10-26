@@ -5,7 +5,7 @@ import { Link } from 'react-router'
 import { SITE_URL } from '@/shared/lib/config'
 import { usePublicProperties } from '@/shared/lib/data'
 import { pick, waLink } from '@/shared/lib/format'
-import { ButtonLink, Reveal } from '@/shared/ui/base'
+import { ButtonLink, EmptyState, Reveal } from '@/shared/ui/base'
 import { Arrow, Counter, PropertyCard, PropertyCardSkeleton, SearchBar, SectionHead } from '../components'
 import { jsonLd, STAT_COLS, statItems, usePageMeta, useSite } from '../site'
 
@@ -120,13 +120,28 @@ export function Home() {
             }
           />
         </Reveal>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {isLoading ? Array.from({ length: 6 }).map((_, i) => <PropertyCardSkeleton key={i} />) : featured.map((p, i) => (
-            <Reveal key={p.id} delay={(i % 3) * 90}>
-              <PropertyCard p={p} />
-            </Reveal>
-          ))}
-        </div>
+        {!isLoading && featured.length === 0 ? (
+          <EmptyState
+            icon={<Building2 className="size-7" />}
+            title={t('home.soonTitle')}
+            text={t('home.soonText')}
+            action={
+              <ButtonLink to={waLink(s.agency.whatsapp)} external variant="whatsapp" icon={<WhatsAppIcon className="size-4" />}>
+                {t('cta.whatsapp')}
+              </ButtonLink>
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {isLoading
+              ? Array.from({ length: 6 }).map((_, i) => <PropertyCardSkeleton key={i} />)
+              : featured.map((p, i) => (
+                  <Reveal key={p.id} delay={(i % 3) * 90}>
+                    <PropertyCard p={p} />
+                  </Reveal>
+                ))}
+          </div>
+        )}
       </section>
 
       {/* ------------------------------------------------ NEIGHBORHOODS */}

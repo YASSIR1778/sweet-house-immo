@@ -50,6 +50,12 @@ const D: Dict = {
   // ---- sections
   'featured.eyebrow': { ar: 'اختياراتنا', fr: 'Notre sélection', es: 'Nuestra selección' },
   'featured.title': { ar: 'عقارات مميزة هذا الأسبوع', fr: 'Les biens à ne pas manquer', es: 'Inmuebles destacados' },
+  'home.soonTitle': { ar: 'عقاراتنا الجديدة قريباً على الموقع', fr: 'Nos biens arrivent très bientôt en ligne', es: 'Nuestros inmuebles llegan muy pronto' },
+  'home.soonText': {
+    ar: 'نحن بصدد إضافة عقاراتنا. أخبرنا بما تبحث عنه، ونرسل لك العروض المناسبة مباشرة.',
+    fr: 'Nous ajoutons nos biens en ce moment. Dites-nous ce que vous cherchez, nous vous envoyons les offres adaptées.',
+    es: 'Estamos añadiendo nuestros inmuebles. Dinos qué buscas y te enviamos las ofertas adecuadas.',
+  },
   'featured.all': { ar: 'عرض كل العقارات', fr: 'Voir tous les biens', es: 'Ver todos los inmuebles' },
   'latest.eyebrow': { ar: 'جديد', fr: 'Nouveautés', es: 'Novedades' },
   'latest.title': { ar: 'أحدث العروض', fr: 'Dernières offres', es: 'Últimas ofertas' },
@@ -350,16 +356,16 @@ const D: Dict = {
 }
 
 const PLURALS: Record<string, { ar: string[]; fr: string[]; es: string[] }> = {
-  'list.results': { ar: ['لا توجد عقارات', 'عقار واحد', 'عقاران', '{n} عقارات', '{n} عقاراً', '{n} عقار'], fr: ['{n} bien', '{n} biens'], es: ['{n} inmueble', '{n} inmuebles'] },
-  'hoods.count': { ar: ['قريباً', 'عقار واحد', 'عقاران', '{n} عقارات', '{n} عقاراً', '{n} عقار'], fr: ['{n} bien', '{n} biens'], es: ['{n} inmueble', '{n} inmuebles'] },
-  'p.photos': { ar: ['الصور', 'صورة واحدة', 'صورتان', '{n} صور', '{n} صورة', '{n} صورة'], fr: ['{n} photo', '{n} photos'], es: ['{n} foto', '{n} fotos'] },
-  'p.views': { ar: ['0 مشاهدة', 'مشاهدة واحدة', 'مشاهدتان', '{n} مشاهدات', '{n} مشاهدة', '{n} مشاهدة'], fr: ['{n} vue', '{n} vues'], es: ['{n} visita', '{n} visitas'] },
+  'list.results': { ar: ['لا توجد عقارات', 'عقار واحد', 'عقاران', '{n} عقارات', '{n} عقاراً', '{n} عقار'], fr: ['Aucun bien', '{n} bien', '{n} biens'], es: ['Ningún inmueble', '{n} inmueble', '{n} inmuebles'] },
+  'hoods.count': { ar: ['قريباً', 'عقار واحد', 'عقاران', '{n} عقارات', '{n} عقاراً', '{n} عقار'], fr: ['Bientôt', '{n} bien', '{n} biens'], es: ['Próximamente', '{n} inmueble', '{n} inmuebles'] },
+  'p.photos': { ar: ['الصور', 'صورة واحدة', 'صورتان', '{n} صور', '{n} صورة', '{n} صورة'], fr: ['Photos', '{n} photo', '{n} photos'], es: ['Fotos', '{n} foto', '{n} fotos'] },
+  'p.views': { ar: ['0 مشاهدة', 'مشاهدة واحدة', 'مشاهدتان', '{n} مشاهدات', '{n} مشاهدة', '{n} مشاهدة'], fr: ['0 vue', '{n} vue', '{n} vues'], es: ['0 visitas', '{n} visita', '{n} visitas'] },
 }
 
 function pluralForm(key: string, lang: Lang, n: number): string | null {
   const f = PLURALS[key]?.[lang]
   if (!f) return null
-  if (lang !== 'ar') return f[n <= 1 ? 0 : 1]
+  if (lang !== 'ar') return n === 0 ? f[0] : f[n === 1 ? 1 : 2]
   const m = n % 100
   if (n === 0) return f[0]
   if (n === 1) return f[1]
